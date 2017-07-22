@@ -1,0 +1,12 @@
+# listen port
+#port: 12345
+
+# data directory path
+#data: /var/lib/hasc
+
+# username used for basic http authentication
+#username: admin
+
+# password used for basic http authentication. Basic auth will be activated if
+# this field is set.
+#password: admin

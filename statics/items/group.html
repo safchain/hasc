@@ -1,0 +1,36 @@
+<script>
+  window["{{ .ID }}"] = function(value) {
+    $("#{{ .ID }}").each(function(i, obj) {
+      $(this).removeClass("badge-success");
+      $(this).removeClass("badge-danger");
+
+      if (value == "ON") {
+        $(this).addClass("badge-success");
+        obj.innerHTML = "OK";
+      } else {
+        $(this).addClass("badge-danger");
+        obj.innerHTML = "KO";
+      }
+    });
+  }
+</script>
+<div class="group">
+  <div class="form-group row">
+    <label class="col col-form-label" data-toggle="collapse" href="#collapse_{{ .ID }}">
+      <img src="{{ .Img }}"/>
+      {{ .Label }}
+    </label>
+    <div class="col text-right" data-toggle="collapse" href="#collapse_{{ .ID }}">
+      <div class="btn-group top15">
+        <span id="{{ .ID }}" class="badge badge-default">-</span>
+      </div>
+    </div>
+  </div>
+  <div class="row collapse" id="collapse_{{ .ID }}">
+    <div class="container w-100">
+      {{ range $i, $item := .Items }}
+        {{ $item.HTML }}
+      {{ end }}
+    </div>
+  </div>
+</div>

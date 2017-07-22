@@ -1,0 +1,47 @@
+<script>
+  window["{{ .ID }}"] = function(value) {
+    $(".{{ .ID }}").each(function() {
+      if ($(this).val() === "ON") {
+        if (value === "ON") {
+          $(this).parent().addClass("active");
+        } else {
+          $(this).parent().removeClass("active");
+        }
+      } else {
+        if (value !== "ON" && value !== "OFF") {
+          $(this).parent().addClass("timer");
+          $(".REMAINING_{{ .ID }}").each(function(i, obj) {
+            obj.innerHTML = value + "s";
+          });
+        } else if (value === "ON") {
+          $(this).parent().removeClass("active");
+          $(this).parent().removeClass("timer");
+        } else if (value === "OFF") {
+          $(".REMAINING_{{ .ID }}").each(function(i, obj) {
+            obj.innerHTML = value;
+          });
+          $(this).parent().addClass("active");
+          $(this).parent().removeClass("timer");
+        }
+      }
+    });
+  }
+</script>
+<div class="single">
+  <div class="form-group row">
+    <label class="col col-form-label">
+      <img src="{{ .Img }}"/>
+      {{ .Label }}
+    </label>
+    <div class="col text-right">
+      <div class="btn-group" data-toggle="buttons">
+        <label class="btn btn-primary" onclick="setState('{{ .ObjectID }}', 'ON')">
+          <input class="{{ .ID }}" type="radio" autocomplete="off" value="ON">ON
+        </label>
+        <label class="btn btn-primary" onclick="setState('{{ .ObjectID }}', 'OFF')">
+          <input class="{{ .ID }}" type="radio" autocomplete="off" value="OFF"><span class="REMAINING_{{ .ID }}">OFF</span>
+        </label>
+      </div>
+    </div>
+  </div>
+</div>

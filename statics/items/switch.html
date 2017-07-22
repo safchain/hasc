@@ -1,0 +1,29 @@
+<script>
+  window["{{ .ID }}"] = function(value) {
+    $(".{{ .ID }}").each(function() {
+      if ($(this).val() == value) {
+        $(this).parent().addClass("active");
+      } else {
+        $(this).parent().removeClass("active");
+      }
+    });
+  }
+</script>
+<div class="single">
+  <div class="form-group row">
+    <label class="col col-form-label">
+      <img src="{{ .Img }}"/>
+      {{ .Label }}
+    </label>
+    <div class="col text-right">
+      <div class="btn-group" data-toggle="buttons">
+        <label class="btn btn-primary" onclick="setState('{{ .ObjectID }}', 'ON')">
+          <input class="{{ .ID }}" type="radio" autocomplete="off" value="ON">ON
+        </label>
+        <label class="btn btn-primary" onclick="setState('{{ .ObjectID }}', 'OFF')">
+          <input class="{{ .ID }}" type="radio" autocomplete="off" value="OFF">OFF
+        </label>
+      </div>
+    </div>
+  </div>
+</div>

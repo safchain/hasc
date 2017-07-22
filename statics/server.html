@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>H.A.S.C.</title>
+
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, maximum-scale=1.0, user-scalable=no">
+
+    <link rel="stylesheet" href="/statics/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/statics/css/font-awesome.min.css">
+    <link rel="stylesheet" href="/statics/css/hasc.css">
+
+    <script src="/statics/js/jquery.min.js"></script>
+    <script src="/statics/js/tether.min.js"></script>
+    <script src="/statics/js/bootstrap.min.js"></script>
+    <script src="/statics/js/notify.min.js"></script>
+
+    <script>
+      var websocket, keepaliveId;
+      function wsConnect() {
+        websocket = new WebSocket("ws://" + location.host + "/ws");
+        websocket.onopen = wsOnOpen;
+        websocket.onclose = wsDisconnected;
+        websocket.onmessage = wsOnMessage;
+        websocket.onerror = wsOnError;
+      }
+      $(document).ready(function() {
+        wsConnect();
+      });
+
+      function wsOnOpen() {
+        if (keepaliveId) {
+          clearInterval(keepaliveId);
+        }
+        keepaliveId = setInterval(function() {
+          websocket.send("keepalive");
+        }, 3000);
+
+        $.notify("Connected", "success");
+      }
+
+      function wsOnError() {
+        $.notify("Writing error", "error");
+      }
+
+      function wsDisconnected(evt) {
+        $.notify("Connection error", "error");
+
+        if (keepaliveId) {
+          clearInterval(keepaliveId);
+          keepaliveId = null;
+        }
+
+        setTimeout(wsConnect, 5000);
+      }
+
+      function wsOnMessage(evt) {
+        var kv = evt.data.split("=");
+        var callback = window[kv[0]];
+        if (callback) {
+          callback(kv[1]);
+        }
+      }
+
+      function setState(id, state) {
+        $.ajax({
+          url: '/object/' + id,
+          type: 'POST',
+          data: state,
+          success: function(result, status) {
+          },
+          error: function(result, status, error) {
+            $.notify(error, "error");
+          }
+        });
+      }
+    </script>
+  </head>
+  <body>
+    {{ if .Header }}
+    <nav class="navbar navbar-light bg-faded">
+      <a class="navbar-brand" href="#">
+        <img src="/statics/img/hasc.png" alt="H.A.S.C.">
+        H.A.S.C.
+      </a>
+    </nav>
+    {{ end }}
+
+    <div>
+      <form>
+      {{ range $i, $row := .Rows }}
+        {{ if ne $row.Label "" }}
+        <div class="group">
+          <div class="form-group row">
+            <label class="col col-form-label" data-toggle="collapse" href="#collapse_row_{{ $i }}">
+              <img src="/statics/img/{{ $row.Img }}.png"/>
+              {{ $row.Label }}
+            </label>
+          </div>
+          <div class="row collapse" id="collapse_row_{{ $i }}">
+            <div class="container w-100">
+              {{ range $j, $item := $row.Items }}
+                {{ $item.HTML }}
+              {{ end }}
+            </div>
+          </div>
+        </div>
+        {{ else }}
+          {{ range $j, $item := $row.Items }}
+            {{ $item.HTML }}
+          {{ end }}
+        {{ end }}
+      {{ end }}
+      </form>
+    </div>
+  </body>
+</html>

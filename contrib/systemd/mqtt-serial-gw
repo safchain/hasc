@@ -1,0 +1,11 @@
+[Unit]
+Description=MQTT to Serial Gateway
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/mqtt-serial-gw --data /etc/hasc
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

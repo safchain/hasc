@@ -1,0 +1,18 @@
+<script>
+  window["{{ .ID }}"] = function(value) {
+    $("#{{ .ID }}").each(function(i, obj) {
+      obj.innerHTML = value;
+    });
+  }
+</script>
+<div class="single">
+  <div class="form-group row">
+    <label class="col col-form-label">
+      <img src="{{ .Img }}"/>
+      {{ .Label }} {{ .ItemLabel }}
+    </label>
+    <span class="col text-right col-form-label">
+      <span id={{ .ID }} class="col-form-label">-</span>{{ .Unit }}
+    </span>
+  </div>
+</div>
