@@ -11,7 +11,7 @@
         if (value !== "ON" && value !== "OFF") {
           $(this).parent().addClass("timer");
           $(".REMAINING_{{ .ID }}").each(function(i, obj) {
-            obj.innerHTML = value + "s";
+            obj.innerHTML = value;
           });
         } else if (value === "ON") {
           $(this).parent().removeClass("active");
