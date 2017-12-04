@@ -61,11 +61,8 @@ func (m *MQTT) SetState(new string) {
 	Log.Infof("MQTT %s set to %s", m.ID(), new)
 
 	m.Lock()
-	old := m.state
 	m.state = new
 	m.Unlock()
-
-	m.notifyListeners(old, new)
 
 	Log.Infof("MQTT %s send payload: %s", m.ID(), new)
 	if token := m.client.Publish(m.pubTopic, 0, false, []byte(new)); token.Wait() && token.Error() != nil {
