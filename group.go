@@ -60,22 +60,18 @@ func (g *Group) off() {
 }
 
 func (g *Group) refresh() {
-	for _, object := range g.objects {
-		g.RLock()
-		off := g.state == OFF
-		g.RUnlock()
+	g.RLock()
+	off := g.state == OFF
+	g.RUnlock()
 
-		if object.State() == ON {
+	for _, object := range g.objects {
+		if object.State() != OFF {
 			if off {
 				g.on()
 			}
 			return
 		}
 	}
-
-	g.RLock()
-	off := g.state == OFF
-	g.RUnlock()
 
 	if !off {
 		g.off()

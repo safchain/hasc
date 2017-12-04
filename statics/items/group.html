@@ -4,7 +4,7 @@
       $(this).removeClass("badge-success");
       $(this).removeClass("badge-danger");
 
-      if (value == "ON") {
+      if (value !== "OFF") {
         $(this).addClass("badge-success");
         obj.innerHTML = "OK";
       } else {

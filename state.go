@@ -24,23 +24,24 @@ package hasc
 
 import (
 	"sync"
-	"sync/atomic"
+
+	"golang.org/x/sync/syncmap"
 )
 
 type stateListener struct {
 	sync.RWMutex
 	callback func(object Object, old string, new string)
-	inEvent  atomic.Value
+	eventMap syncmap.Map
 }
 
 func (s *stateListener) OnStateChange(object Object, old string, new string) {
-	if s.inEvent.Load() == true {
+	if _, ok := s.eventMap.Load(object.ID()); ok {
 		return
 	}
 
-	s.inEvent.Store(true)
+	s.eventMap.Store(object.ID(), true)
 	defer func() {
-		s.inEvent.Store(false)
+		s.eventMap.Delete(object.ID())
 	}()
 
 	s.RLock()
