@@ -121,9 +121,8 @@ func (g *GCal) newEventGCal(event *calendar.Event) (*eventGCal, error) {
 				re := regexp.MustCompile("(?i)START:\\s*([^\\s]*)\\s*(.*)")
 				if res := re.FindStringSubmatch(event.Description); len(res) > 0 {
 					if obj := ObjectFromID(res[1]); obj != nil {
-
-						obj.SetState(res[2])
 						Log.Infof("GCal set %s to %s", obj.ID(), res[2])
+						obj.SetState(res[2])
 					}
 				}
 			case <-endAfter:
