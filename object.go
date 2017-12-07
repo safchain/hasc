@@ -59,9 +59,7 @@ type AnItem struct {
 type Object interface {
 	ID() string
 	Label() string
-	Address1() int
-	Address2() int
-	Receiver() int
+	Device() interface{}
 	SetState(new string)
 	State() string
 	AddObjectListener(l ObjectListener)
@@ -76,9 +74,7 @@ type AnObject struct {
 	lock           sync.RWMutex
 	id             string
 	label          string
-	address1       int
-	address2       int
-	receiver       int
+	device         interface{}
 	state          string
 	eventListeners []ObjectListener
 	items          map[string]Item
@@ -115,16 +111,8 @@ func (a *AnObject) Label() string {
 	return a.label
 }
 
-func (a *AnObject) Address1() int {
-	return a.address1
-}
-
-func (a *AnObject) Address2() int {
-	return a.address2
-}
-
-func (a *AnObject) Receiver() int {
-	return a.receiver
+func (a *AnObject) Device() interface{} {
+	return a.device
 }
 
 func (a *AnObject) SetState(state string) {

@@ -137,20 +137,15 @@ func ObjectFromID(id string) Object {
 	return o
 }
 
-// ObjectFromAddr looks up for an registered object for the given address1, address2 and
-// the receiver parameters.
-func ObjectFromAddr(address1 int, address2 int, receiver int) Object {
+func Objects() []Object {
 	lock.RLock()
 	defer lock.RUnlock()
 
-	for _, object := range objects {
-		if object.Address1() == address1 && object.Address2() == address2 && object.Receiver() == receiver {
-			return object
-		}
+	var l []Object
+	for _, o := range objects {
+		l = append(l, o)
 	}
-	Log.Errorf("Object Addr not found: %d %d %d", address1, address2, receiver)
-
-	return &AnObject{}
+	return l
 }
 
 // SetStateListener set a state listener. It is useful to implement gateways for

@@ -26,21 +26,19 @@ type Sensor struct {
 	*Value
 }
 
-func newSensor(id string, label string, address1 int, address2 int, receiver int) *Sensor {
+func newSensor(id string, label string, device interface{}) *Sensor {
 	s := &Sensor{
 		Value: newValue(id, label),
 	}
 
-	s.address1 = address1
-	s.address2 = address2
-	s.receiver = receiver
+	s.device = device
 
 	return s
 }
 
 // RegisterSensor registers a new sensor.
-func RegisterSensor(id string, label string, address1 int, address2 int, receiver int) *Sensor {
-	s := newSensor(id, label, address1, address2, receiver)
+func RegisterSensor(id string, label string, device interface{}) *Sensor {
+	s := newSensor(id, label, device)
 	RegisterObject(s)
 	return s
 }

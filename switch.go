@@ -86,16 +86,14 @@ func (si *SwitchItem) MarshalJSON() ([]byte, error) {
 	return marshalJSON(si)
 }
 
-func newSwitch(id string, label string, address1 int, address2 int, receiver int) *Switch {
+func newSwitch(id string, label string, device interface{}) *Switch {
 	s := &Switch{
 		AnObject: AnObject{
-			id:       id,
-			label:    label,
-			address1: address1,
-			address2: address2,
-			receiver: receiver,
-			items:    make(map[string]Item),
-			state:    OFF,
+			id:     id,
+			label:  label,
+			device: device,
+			items:  make(map[string]Item),
+			state:  OFF,
 		},
 	}
 
@@ -112,8 +110,8 @@ func newSwitch(id string, label string, address1 int, address2 int, receiver int
 // RegisterSwitch register a new Switch. A switch has two states ON or OFF.
 // It will emit a message on the bus when changing state from ON to OFF and
 // vise versa.
-func RegisterSwitch(id string, label string, address1 int, address2 int, receiver int) *Switch {
-	s := newSwitch(id, label, address1, address2, receiver)
+func RegisterSwitch(id string, label string, device interface{}) *Switch {
+	s := newSwitch(id, label, device)
 	RegisterObject(s)
 	return s
 }

@@ -69,15 +69,13 @@ func (bi *ButtonItem) MarshalJSON() ([]byte, error) {
 	return marshalJSON(bi)
 }
 
-func newButton(id string, label string, address1 int, address2 int, receiver int) *Button {
+func newButton(id string, label string, device interface{}) *Button {
 	s := &Button{
 		AnObject: AnObject{
-			id:       id,
-			label:    label,
-			address1: address1,
-			address2: address2,
-			receiver: receiver,
-			items:    make(map[string]Item),
+			id:     id,
+			label:  label,
+			device: device,
+			items:  make(map[string]Item),
 		},
 	}
 
@@ -91,10 +89,10 @@ func newButton(id string, label string, address1 int, address2 int, receiver int
 	return s
 }
 
-// RegisterButton registers a new button using the given ID, label, address1, address2
-// and receiver. The object will send ON state to the bus.
-func RegisterButton(id string, label string, address1 int, address2 int, receiver int) *Button {
-	s := newButton(id, label, address1, address2, receiver)
+// RegisterButton registers a new button using the given ID, label and device
+// The object will send ON state to the bus.
+func RegisterButton(id string, label string, device interface{}) *Button {
+	s := newButton(id, label, device)
 	RegisterObject(s)
 	return s
 }
