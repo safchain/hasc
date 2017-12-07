@@ -61,19 +61,23 @@ func (g *Group) off() {
 
 func (g *Group) refresh() {
 	g.RLock()
-	off := g.state == OFF
+	off := g.state == OFF || g.state == ""
 	g.RUnlock()
 
+	new := OFF
 	for _, object := range g.objects {
-		if object.State() != OFF {
+		os := object.State()
+		if os != OFF && os != "" {
+			new = ON
+
 			if off {
 				g.on()
+				break
 			}
-			return
 		}
 	}
 
-	if !off {
+	if new == OFF && !off {
 		g.off()
 	}
 }
@@ -156,6 +160,7 @@ func newGroup(id string, label string) *Group {
 			id:    id,
 			label: label,
 			items: make(map[string]Item),
+			state: OFF,
 		},
 	}
 
