@@ -46,6 +46,10 @@ func TestTimer1(t *testing.T) {
 		t.Fatalf("should get OFF state, got: %s", o.State())
 	}
 
+	if tm.State() != ON {
+		t.Fatalf("should get ON state, got: %s", tm.State())
+	}
+
 	time.Sleep(300 * time.Millisecond)
 	tm.SetState(ON)
 	if o.State() == ON {
