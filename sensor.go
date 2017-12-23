@@ -26,9 +26,20 @@ type Sensor struct {
 	*Value
 }
 
-func newSensor(id string, label string, device interface{}) *Sensor {
+func (s *Sensor) SetState(new string) {
+	Log.Infof("Sensor %s set to %s", s.ID(), new)
+
+	s.Lock()
+	old := s.state
+	s.state = new
+	s.Unlock()
+
+	s.notifyListeners(old, new)
+}
+
+func newSensor(id string, label string, device interface{}, unit string) *Sensor {
 	s := &Sensor{
-		Value: newValue(id, label),
+		Value: newValue(id, label, unit),
 	}
 
 	s.device = device
@@ -37,8 +48,8 @@ func newSensor(id string, label string, device interface{}) *Sensor {
 }
 
 // RegisterSensor registers a new sensor.
-func RegisterSensor(id string, label string, device interface{}) *Sensor {
-	s := newSensor(id, label, device)
+func RegisterSensor(id string, label string, device interface{}, unit string) *Sensor {
+	s := newSensor(id, label, device, unit)
 	RegisterObject(s)
 	return s
 }

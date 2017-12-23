@@ -30,10 +30,11 @@ type Value struct {
 
 type ValueItem struct {
 	AnItem
+	unit string
 }
 
 func (v *Value) SetState(new string) {
-	Log.Infof("Sensor %s set to %s", v.ID(), new)
+	Log.Infof("Value %s set to %s", v.ID(), new)
 
 	v.Lock()
 	old := v.state
@@ -47,14 +48,14 @@ func (vi *ValueItem) HTML() template.HTML {
 	vi.object.RLock()
 	defer vi.object.RUnlock()
 
-	return valueTemplate(vi, "", "", vi.img)
+	return valueTemplate(vi, "", vi.unit, vi.img)
 }
 
 func (vi *ValueItem) MarshalJSON() ([]byte, error) {
 	return marshalJSON(vi)
 }
 
-func newValue(id string, label string) *Value {
+func newValue(id string, label string, unit string) *Value {
 	v := &Value{
 		AnObject: AnObject{
 			id:    id,
@@ -68,14 +69,15 @@ func newValue(id string, label string) *Value {
 			object: v,
 			img:    "chart",
 		},
+		unit: unit,
 	}
 
 	return v
 }
 
 // RegisterValue registers a simple value object.
-func RegisterValue(id string, label string) *Value {
-	v := newValue(id, label)
+func RegisterValue(id string, label string, unit string) *Value {
+	v := newValue(id, label, unit)
 	RegisterObject(v)
 	return v
 }
