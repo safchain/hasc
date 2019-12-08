@@ -27,6 +27,8 @@ import (
 	"html/template"
 	"sort"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 const (
@@ -60,7 +62,7 @@ type Object interface {
 	ID() string
 	Label() string
 	Device() interface{}
-	SetState(new string)
+	SetState(new string) string
 	State() string
 	AddObjectListener(l ObjectListener)
 	Items() []Item
@@ -71,13 +73,15 @@ type Object interface {
 }
 
 type AnObject struct {
-	lock           sync.RWMutex
-	id             string
-	label          string
-	device         interface{}
-	state          string
-	eventListeners []ObjectListener
-	items          map[string]Item
+	lock            sync.RWMutex
+	id              string
+	label           string
+	device          interface{}
+	state           string
+	eventListeners  []ObjectListener
+	items           map[string]Item
+	barrier         int64
+	lastStateUpdate time.Time
 }
 
 const (
@@ -98,8 +102,11 @@ func (a *AnObject) AddObjectListener(l ObjectListener) {
 }
 
 func (a *AnObject) notifyListeners(old string, new string) {
-	for _, l := range a.eventListeners {
-		l.OnStateChange(a, old, new)
+	if atomic.CompareAndSwapInt64(&a.barrier, 0, 1) {
+		for _, l := range a.eventListeners {
+			l.OnStateChange(a, old, new)
+		}
+		atomic.StoreInt64(&a.barrier, 0)
 	}
 }
 
@@ -115,10 +122,14 @@ func (a *AnObject) Device() interface{} {
 	return a.device
 }
 
-func (a *AnObject) SetState(state string) {
+func (a *AnObject) SetState(state string) string {
 	a.lock.Lock()
+	old := a.state
 	a.state = state
+	a.lastStateUpdate = time.Now()
 	a.lock.Unlock()
+
+	return old
 }
 
 func (a *AnObject) State() string {

@@ -26,15 +26,14 @@ type Sensor struct {
 	*Value
 }
 
-func (s *Sensor) SetState(new string) {
+func (s *Sensor) SetState(new string) string {
 	Log.Infof("Sensor %s set to %s", s.ID(), new)
 
-	s.Lock()
-	old := s.state
-	s.state = new
-	s.Unlock()
+	old := s.AnObject.SetState(new)
 
 	s.notifyListeners(old, new)
+
+	return old
 }
 
 func newSensor(id string, label string, device interface{}, unit string) *Sensor {

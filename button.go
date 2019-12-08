@@ -35,18 +35,18 @@ type ButtonItem struct {
 	AnItem
 }
 
-func (b *Button) push() {
+func (b *Button) push() string {
 	Log.Infof("Button %s pushed", b.ID())
 
-	b.Lock()
-	b.state = ON
-	b.Unlock()
+	old := b.AnObject.SetState(ON)
 
 	b.notifyListeners("", ON)
+
+	return old
 }
 
-func (b *Button) SetState(new string) {
-	b.push()
+func (b *Button) SetState(new string) string {
+	return b.push()
 }
 
 func (bi *ButtonItem) HTML() template.HTML {

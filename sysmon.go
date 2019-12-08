@@ -78,17 +78,16 @@ const (
 	CPUAvg15ID       = "CPU_AVG15"
 )
 
-func (s *SysMon) setState(new string) {
+func (s *SysMon) SetState(new string) string {
 	Log.Infof("SysMon %s set to %s", s.ID(), new)
 
-	s.Lock()
-	old := s.state
-	s.state = new
-	s.Unlock()
+	old := s.AnObject.SetState(new)
 
 	if new != old {
 		s.notifyListeners(old, new)
 	}
+
+	return old
 }
 
 func (s *SysMon) refreshFnc() {
@@ -170,7 +169,7 @@ func (s *SysMon) refreshFnc() {
 	}
 
 	data, _ := json.Marshal(s.values)
-	s.setState(string(data))
+	s.SetState(string(data))
 }
 
 func (s *SysMon) refresh(refresh time.Duration) {

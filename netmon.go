@@ -49,17 +49,14 @@ const (
 	pingTimeout = 5 * time.Second
 )
 
-func (n *NetMon) setState(new string) {
-	n.Lock()
-	old := n.state
+func (n *NetMon) SetState(new string) string {
 	switch new {
 	case "on", "ON", "1":
-		n.state = ON
+		new = ON
 	default:
-		n.state = OFF
+		new = OFF
 	}
-	new = n.state
-	n.Unlock()
+	old := n.AnObject.SetState(new)
 
 	if new != old {
 		Log.Infof("NetMon set %s to %s", n.id, new)
@@ -68,6 +65,8 @@ func (n *NetMon) setState(new string) {
 	if new != old {
 		n.notifyListeners(old, new)
 	}
+
+	return old
 }
 
 func (n *NetMon) onRecv(addr *net.IPAddr, rtt time.Duration) {
@@ -76,7 +75,7 @@ func (n *NetMon) onRecv(addr *net.IPAddr, rtt time.Duration) {
 	n.lastSuccess = time.Now()
 	n.fail = 0
 
-	n.setState(ON)
+	n.SetState(ON)
 }
 
 func (n *NetMon) onIdle() {
@@ -88,7 +87,7 @@ func (n *NetMon) onIdle() {
 
 	n.fail++
 	if n.fail > n.retry {
-		n.setState(OFF)
+		n.SetState(OFF)
 	} else {
 		Log.Infof("NetMon error %s, fails: %d", n.id, n.fail)
 	}

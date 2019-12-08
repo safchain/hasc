@@ -40,10 +40,7 @@ type GroupItem struct {
 func (g *Group) on() {
 	Log.Infof("Group %s set to ON", g.ID())
 
-	g.Lock()
-	old := g.state
-	g.state = ON
-	g.Unlock()
+	old := g.SetState(ON)
 
 	g.notifyListeners(old, ON)
 }
@@ -51,10 +48,7 @@ func (g *Group) on() {
 func (g *Group) off() {
 	Log.Infof("Group %s set to OFF", g.ID())
 
-	g.Lock()
-	old := g.state
-	g.state = OFF
-	g.Unlock()
+	old := g.SetState(OFF)
 
 	g.notifyListeners(old, OFF)
 }

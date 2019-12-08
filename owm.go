@@ -26,7 +26,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"os"
 	"time"
 
 	owm "github.com/briandowns/openweathermap"
@@ -58,17 +57,16 @@ const (
 	HummidityID   = "HUMIDITY"
 )
 
-func (o *OWM) setState(new string) {
+func (o *OWM) SetState(new string) string {
 	Log.Infof("Weather %s set to %s", o.ID(), new)
 
-	o.Lock()
-	old := o.state
-	o.state = new
-	o.Unlock()
+	old := o.AnObject.SetState(new)
 
 	if old != new {
 		o.notifyListeners(old, new)
 	}
+
+	return old
 }
 
 func (o *OWM) refreshFnc() {
@@ -79,7 +77,7 @@ func (o *OWM) refreshFnc() {
 	o.values.Humidity = o.cwd.Main.Humidity
 
 	data, _ := json.Marshal(o.values)
-	o.setState(string(data))
+	o.SetState(string(data))
 }
 
 func (o *OWM) refresh(refresh time.Duration) {
@@ -180,9 +178,7 @@ func (hi *HummidityItem) MarshalJSON() ([]byte, error) {
 }
 
 func newOWM(id string, label string, apiKey string, lat float64, lon float64, refresh time.Duration) *OWM {
-	os.Setenv("OWM_API_KEY", apiKey)
-
-	cwd, err := owm.NewCurrent("C", "EN")
+	cwd, err := owm.NewCurrent("C", "EN", apiKey)
 	if err != nil {
 		Log.Fatal(err)
 	}

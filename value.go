@@ -33,15 +33,14 @@ type ValueItem struct {
 	unit string
 }
 
-func (v *Value) SetState(new string) {
+func (v *Value) SetState(new string) string {
 	Log.Infof("Value %s set to %s", v.ID(), new)
 
-	v.Lock()
-	old := v.state
-	v.state = new
-	v.Unlock()
+	old := v.AnObject.SetState(new)
 
 	v.notifyListeners(old, new)
+
+	return old
 }
 
 func (vi *ValueItem) HTML() template.HTML {

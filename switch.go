@@ -35,35 +35,36 @@ type SwitchItem struct {
 	AnItem
 }
 
-func (s *Switch) on() {
+func (s *Switch) on() string {
 	Log.Infof("Switch %s set to ON", s.ID())
 
-	s.Lock()
-	old := s.state
-	s.state = ON
-	s.Unlock()
+	old := s.AnObject.SetState(ON)
 
 	s.notifyListeners(old, ON)
+
+	return old
 }
 
-func (s *Switch) off() {
+func (s *Switch) off() string {
 	Log.Infof("Switch %s set to OFF", s.ID())
 
-	s.Lock()
-	old := s.state
-	s.state = OFF
-	s.Unlock()
+	old := s.AnObject.SetState(OFF)
 
 	s.notifyListeners(old, OFF)
+
+	return old
 }
 
-func (s *Switch) SetState(new string) {
+func (s *Switch) SetState(new string) string {
+	var old string
 	switch new {
 	case "on", "ON", "1":
-		s.on()
+		old = s.on()
 	default:
-		s.off()
+		old = s.off()
 	}
+
+	return old
 }
 
 func (si *SwitchItem) HTML() template.HTML {

@@ -137,6 +137,11 @@ func ObjectFromID(id string) Object {
 	return o
 }
 
+// SetObjectIDState set state of the given object id
+func SetObjectIDState(id string, state string) {
+	ObjectFromID(id).SetState(state)
+}
+
 func Objects() []Object {
 	lock.RLock()
 	defer lock.RUnlock()
@@ -223,10 +228,10 @@ func indexJSON(w http.ResponseWriter, r *http.Request) {
 
 	o := struct {
 		HascVer string
-		Rows    []row
+		Objects []row
 	}{
 		HascVer: Version,
-		Rows:    Layout.rows,
+		Objects: Layout.rows,
 	}
 
 	e.Encode(o)
@@ -241,7 +246,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 }
 
 func websocket(w http.ResponseWriter, r *http.Request) {
-	conn, _, _, err := ws.UpgradeHTTP(r, w, nil)
+	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
 		Log.Errorf("Websocket error: %s", err)
 		return

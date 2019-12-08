@@ -49,26 +49,23 @@ type TimerItem struct {
 	AnItem
 }
 
-func (r *Timer) on() {
+func (r *Timer) on() string {
 	Log.Infof("Timer %s set to ON", r.ID())
 
+	old := r.AnObject.SetState(ON)
+
 	r.Lock()
-	old := r.state
 	r.lastUpdate = time.Now()
 	r.Unlock()
 
 	if old != ON {
-		r.Lock()
-		r.state = ON
-		r.Unlock()
-
 		r.notifyListeners(old, ON)
 
 		if r.active.Load() == true {
 			if r.obj.State() != r.opts.OnState {
 				r.obj.SetState(r.opts.OnState)
 			}
-			return
+			return old
 		}
 
 		go func() {
@@ -122,30 +119,34 @@ func (r *Timer) on() {
 			}
 		}()
 	}
+
+	return old
 }
 
-func (r *Timer) off() {
+func (r *Timer) off() string {
 	Log.Infof("Timer %s set to OFF", r.ID())
 
-	r.Lock()
-	old := r.state
-	r.state = OFF
-	r.Unlock()
+	old := r.AnObject.SetState(OFF)
 
 	if old != OFF {
 		r.notifyListeners(old, OFF)
 	}
 
 	r.obj.SetState(r.opts.OffState)
+
+	return old
 }
 
-func (r *Timer) SetState(new string) {
+func (r *Timer) SetState(new string) string {
+	var old string
 	switch new {
 	case "on", "ON", "1":
-		r.on()
+		old = r.on()
 	default:
-		r.off()
+		old = r.off()
 	}
+
+	return old
 }
 
 func (ri *TimerItem) HTML() template.HTML {

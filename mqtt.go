@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"html/template"
 	"os"
-	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
@@ -34,10 +33,9 @@ import (
 // MQTT Object
 type MQTT struct {
 	AnObject
-	broker   string
 	pubTopic string
 	subTopic string
-	client   mqtt.Client
+	conn     *MQTTConn
 }
 
 type MQTTItem struct {
@@ -45,11 +43,9 @@ type MQTTItem struct {
 }
 
 func (m *MQTT) onMessage(client mqtt.Client, msg mqtt.Message) {
-	m.Lock()
-	old := m.state
 	new := string(msg.Payload())
-	m.state = new
-	m.Unlock()
+	old := m.AnObject.SetState(new)
+
 	Log.Infof("MQTT %s changed to %s", m.ID(), new)
 
 	m.notifyListeners(old, new)
@@ -57,17 +53,14 @@ func (m *MQTT) onMessage(client mqtt.Client, msg mqtt.Message) {
 
 // SetState changes the internal state of the Object. The new state will be
 // published.
-func (m *MQTT) SetState(new string) {
+func (m *MQTT) SetState(new string) string {
 	Log.Infof("MQTT %s set to %s", m.ID(), new)
 
-	m.Lock()
-	m.state = new
-	m.Unlock()
+	old := m.AnObject.SetState(new)
 
-	Log.Infof("MQTT %s send payload: %s", m.ID(), new)
-	if token := m.client.Publish(m.pubTopic, 0, false, []byte(new)); token.Wait() && token.Error() != nil {
-		Log.Errorf("MQTT error while publishing: %s", token.Error())
-	}
+	m.conn.Publish(m.ID(), m.pubTopic, new)
+
+	return old
 }
 
 func (mi *MQTTItem) HTML() template.HTML {
@@ -82,7 +75,7 @@ func (mi *MQTTItem) MarshalJSON() ([]byte, error) {
 }
 
 // NewMQTT creates a new MQTT Object, publishing and subscribing to the given broker/topic
-func newMQTT(id string, label string, broker string, pubTopic string, subTopic string) *MQTT {
+func newMQTT(id string, label string, conn *MQTTConn, pubTopic string, subTopic string) *MQTT {
 	if pubTopic == subTopic {
 		fmt.Println("pub topic and sub topic have to be different")
 		os.Exit(1)
@@ -94,7 +87,7 @@ func newMQTT(id string, label string, broker string, pubTopic string, subTopic s
 			label: label,
 			items: make(map[string]Item),
 		},
-		broker:   broker,
+		conn:     conn,
 		pubTopic: pubTopic,
 		subTopic: subTopic,
 	}
@@ -106,40 +99,15 @@ func newMQTT(id string, label string, broker string, pubTopic string, subTopic s
 		},
 	}
 
-	opts := mqtt.NewClientOptions().AddBroker(broker)
-	opts.SetAutoReconnect(true)
-	opts.SetConnectionLostHandler(func(client mqtt.Client, err error) {
-		Log.Errorf("MQTT connection lost: %s", err)
-	})
-	opts.SetOnConnectHandler(func(client mqtt.Client) {
-		Log.Infof("MQTT connected")
-
-		if token := client.Subscribe(subTopic, 0, m.onMessage); token.Wait() && token.Error() != nil {
-			client.Disconnect(0)
-			Log.Errorf("MQTT subscription error: %s", token.Error())
-		}
-	})
-
-	m.client = mqtt.NewClient(opts)
-
-	go func() {
-		for {
-			if token := m.client.Connect(); token.Wait() && token.Error() != nil {
-				Log.Errorf("MQTT connection error: %s", token.Error())
-				time.Sleep(2 * time.Second)
-			} else {
-				return
-			}
-		}
-	}()
+	conn.Subscribe(subTopic, m)
 
 	return m
 }
 
 // RegisterMQTT registers a MQTT broker. It will publish its state changes to the pubTopic and
 // listens for state change on the subTopic.
-func RegisterMQTT(id string, label string, broker string, pubTopic string, subTopic string) *MQTT {
-	m := newMQTT(id, label, broker, pubTopic, subTopic)
+func RegisterMQTT(id string, label string, conn *MQTTConn, pubTopic string, subTopic string) *MQTT {
+	m := newMQTT(id, label, conn, pubTopic, subTopic)
 	RegisterObject(m)
 	return m
 }

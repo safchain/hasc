@@ -54,11 +54,8 @@ func (s *Serial) read() {
 			time.Sleep(time.Second)
 		}
 		if n > 0 {
-			s.Lock()
-			old := s.state
 			new := strings.TrimSpace(string(buf[0:n]))
-			s.state = new
-			s.Unlock()
+			old := s.AnObject.SetState(new)
 
 			Log.Infof("Serial %s changed to %s", s.ID(), new)
 
@@ -67,13 +64,10 @@ func (s *Serial) read() {
 	}
 }
 
-func (s *Serial) SetState(new string) {
+func (s *Serial) SetState(new string) string {
 	Log.Infof("Serial %s set to %s", s.ID(), new)
 
-	s.Lock()
-	old := s.state
-	s.state = new
-	s.Unlock()
+	old := s.AnObject.SetState(new)
 
 	s.notifyListeners(old, new)
 
@@ -86,6 +80,8 @@ func (s *Serial) SetState(new string) {
 	if _, err := port.Write([]byte(new + "\n")); err != nil {
 		s.openPort()
 	}
+
+	return old
 }
 
 func (s *Serial) openPort() error {
