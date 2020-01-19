@@ -24,7 +24,6 @@ package hasc
 
 import (
 	"fmt"
-	"html/template"
 	"os"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -63,13 +62,6 @@ func (m *MQTT) SetState(new string) string {
 	return old
 }
 
-func (mi *MQTTItem) HTML() template.HTML {
-	mi.object.RLock()
-	defer mi.object.RUnlock()
-
-	return valueTemplate(mi, "Value", "", mi.img)
-}
-
 func (mi *MQTTItem) MarshalJSON() ([]byte, error) {
 	return marshalJSON(mi)
 }
@@ -95,6 +87,7 @@ func newMQTT(id string, label string, conn *MQTTConn, pubTopic string, subTopic 
 	m.items[ItemID] = &MQTTItem{
 		AnItem: AnItem{
 			object: m,
+			kind:   "value",
 			img:    "chart",
 		},
 	}
