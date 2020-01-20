@@ -25,7 +25,6 @@ package hasc
 import (
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"io/ioutil"
 	"mime"
 	"net"
@@ -40,6 +39,7 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/goji/httpauth"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	logging "github.com/op/go-logging"
 	"github.com/safchain/hasc/statics"
@@ -64,7 +64,7 @@ type wsclient struct {
 	sync.RWMutex
 	addr     net.Addr
 	lastRead time.Time
-	wch      chan string
+	wch      chan []byte
 	quit     chan bool
 }
 
@@ -173,20 +173,17 @@ func setObjectState(w http.ResponseWriter, r *http.Request) {
 	ObjectFromID(params["id"]).SetState(string(data))
 }
 
-func asset(w http.ResponseWriter, r *http.Request) {
-	upath := r.URL.Path
-	if strings.HasPrefix(upath, "/") {
-		upath = strings.TrimPrefix(upath, "/")
-	}
+func asset(path string, w http.ResponseWriter, r *http.Request) {
+	path = "statics/" + path
 
-	content, err := statics.Asset(upath)
+	content, err := statics.Asset(path)
 	if err != nil {
-		Log.Errorf("unable to find the asset: %s", upath)
+		Log.Errorf("unable to find the asset: %s", path)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	ext := filepath.Ext(upath)
+	ext := filepath.Ext(path)
 	ct := mime.TypeByExtension(ext)
 
 	w.Header().Set("Content-Type", ct+"; charset=UTF-8")
@@ -194,29 +191,12 @@ func asset(w http.ResponseWriter, r *http.Request) {
 	w.Write(content)
 }
 
-func indexHTML(w http.ResponseWriter, r *http.Request) {
-	asset := statics.MustAsset("statics/server.html")
-
-	header := true
-	if r.FormValue("header") == "false" {
-		header = false
+func assetHandler(w http.ResponseWriter, r *http.Request) {
+	upath := r.URL.Path
+	if strings.HasPrefix(upath, "/") {
+		upath = strings.TrimPrefix(upath, "/")
 	}
-
-	data := struct {
-		Rows   []row
-		Header bool
-	}{
-		Rows:   Layout.rows,
-		Header: header,
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
-
-	tmpl := template.Must(template.New("index").Parse(string(asset)))
-	if err := tmpl.Execute(w, data); err != nil {
-		Log.Criticalf("template execution error: %s", err)
-	}
+	asset(upath, w, r)
 }
 
 func indexJSON(w http.ResponseWriter, r *http.Request) {
@@ -228,10 +208,10 @@ func indexJSON(w http.ResponseWriter, r *http.Request) {
 
 	o := struct {
 		HascVer string
-		Objects []row
+		Items   []row
 	}{
 		HascVer: Version,
-		Objects: Layout.rows,
+		Items:   Layout.rows,
 	}
 
 	e.Encode(o)
@@ -241,7 +221,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 	if r.FormValue("type") == "json" {
 		indexJSON(w, r)
 	} else {
-		indexHTML(w, r)
+		asset("index.html", w, r)
 	}
 }
 
@@ -256,20 +236,28 @@ func websocket(w http.ResponseWriter, r *http.Request) {
 	// resend all item values
 	for _, row := range Layout.rows {
 		for _, item := range row.Items {
-			msg := fmt.Sprintf("%s_%s=%s", item.Object().ID(), item.ID(), item.Value())
-			Log.Infof("websocket send message: %s", msg)
+			b, err := json.Marshal(item)
+			if err != nil {
+				Log.Errorf("websocket error while writing message: %s", err)
+				continue
+			}
+			Log.Infof("websocket send message: %s", string(b))
 
-			err = wsutil.WriteServerMessage(conn, ws.OpText, []byte(msg))
+			err = wsutil.WriteServerMessage(conn, ws.OpText, b)
 			if err != nil {
 				Log.Warningf("websocket error while writing message: %s", err)
+				continue
 			}
 
 			if _, ok := item.(*GroupItem); ok {
-				for _, subitem := range item.Object().Items() {
-					msg := fmt.Sprintf("%s_%s=%s", subitem.Object().ID(), subitem.ID(), subitem.Value())
-					Log.Infof("websocket send message: %s", msg)
+				for _, subItem := range item.Object().Items() {
+					b, err := json.Marshal(subItem)
+					if err != nil {
+						Log.Errorf("websocket error while writing message: %s", err)
+						continue
+					}
 
-					err = wsutil.WriteServerMessage(conn, ws.OpText, []byte(msg))
+					err = wsutil.WriteServerMessage(conn, ws.OpText, b)
 					if err != nil {
 						Log.Warningf("websocket error while writing message: %s", err)
 					}
@@ -281,7 +269,7 @@ func websocket(w http.ResponseWriter, r *http.Request) {
 	client := &wsclient{
 		addr:     conn.RemoteAddr(),
 		lastRead: time.Now(),
-		wch:      make(chan string, 100),
+		wch:      make(chan []byte, 100),
 	}
 
 	lock.Lock()
@@ -318,9 +306,8 @@ func websocket(w http.ResponseWriter, r *http.Request) {
 
 		for {
 			select {
-			case msg := <-client.wch:
-				err = wsutil.WriteServerMessage(conn, ws.OpText, []byte(msg))
-				if err != nil {
+			case b := <-client.wch:
+				if err = wsutil.WriteServerMessage(conn, ws.OpText, b); err != nil {
 					Log.Warningf("websocket error while writing message: %s", err)
 					return
 				}
@@ -339,9 +326,13 @@ func websocket(w http.ResponseWriter, r *http.Request) {
 
 func notifyItemStateChange(item Item) {
 	for _, client := range wsclients {
-		msg := fmt.Sprintf("%s_%s=%s", item.Object().ID(), item.ID(), item.Value())
-		Log.Infof("websocket send message to %s: %s", client.addr, msg)
-		client.wch <- msg
+		b, err := json.Marshal(item)
+		if err != nil {
+			Log.Errorf("websocket error while writing message: %s", err)
+		}
+
+		Log.Infof("websocket send message to %s: %s", client.addr, string(b))
+		client.wch <- b
 	}
 }
 
@@ -391,6 +382,19 @@ func init() {
 	Cmd = &cobra.Command{}
 }
 
+type Auth struct {
+	stdHandler  http.Handler
+	authHandler http.Handler
+}
+
+func (a *Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "OPTIONS" {
+		a.stdHandler.ServeHTTP(w, r)
+	} else {
+		a.authHandler.ServeHTTP(w, r)
+	}
+}
+
 // Start start the server. It starts the WebSocket server, listens for objects state
 // changes and forward them trough WebSocket. The onInit callback has to be used
 // to register objects.
@@ -433,16 +437,25 @@ Complete documentation is available at http://github.com/safchain/hasc`, name)
 
 		router = mux.NewRouter()
 		router.HandleFunc("/", index).Methods("GET")
-		router.PathPrefix("/statics").HandlerFunc(asset).Methods("GET")
+		router.PathPrefix("/static").HandlerFunc(assetHandler).Methods("GET")
+		router.PathPrefix("/statics").HandlerFunc(assetHandler).Methods("GET")
 		router.HandleFunc("/object/{id}", getObjectState).Methods("GET")
 		router.HandleFunc("/object/{id}", setObjectState).Methods("POST")
 		router.HandleFunc("/ws", websocket)
 
+		headersOk := handlers.AllowedHeaders([]string{"Authorization"})
+		originsOk := handlers.AllowedOrigins([]string{"*"})
+		methodsOk := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "OPTIONS"})
+
+		handler := handlers.CORS(originsOk, headersOk, methodsOk)(router)
+
 		if Cfg.GetString("password") != "" {
-			http.Handle("/", httpauth.SimpleBasicAuth(Cfg.GetString("username"), Cfg.GetString("password"))(router))
-		} else {
-			http.Handle("/", router)
+			handler = &Auth{
+				stdHandler:  handler,
+				authHandler: httpauth.SimpleBasicAuth(Cfg.GetString("username"), Cfg.GetString("password"))(handler),
+			}
 		}
+		http.Handle("/", handler)
 
 		objects = make(map[string]Object)
 		wsclients = make(map[*wsclient]*wsclient)

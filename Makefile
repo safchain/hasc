@@ -1,5 +1,8 @@
 bindata:
-	go-bindata ${BINDATA_FLAGS} -nometadata -o statics/bindata.go -pkg=statics -ignore=bindata.go statics/*
+	cd app && npm run build && cd ..
+	cp -R app/build/* statics/
+	go-bindata ${BINDATA_FLAGS} -nometadata -o statics/bindata.go \
+		-pkg=statics -ignore=bindata.go statics/* statics/static/*
 	gofmt -w -s statics/bindata.go
 
 install: bindata

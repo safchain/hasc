@@ -22,11 +22,6 @@
 
 package hasc
 
-import (
-	"fmt"
-	"html/template"
-)
-
 type Button struct {
 	AnObject
 }
@@ -49,22 +44,6 @@ func (b *Button) SetState(new string) string {
 	return b.push()
 }
 
-func (bi *ButtonItem) HTML() template.HTML {
-	data := struct {
-		ID       string
-		ObjectID string
-		Label    string
-		Img      string
-	}{
-		ID:       bi.object.ID() + "_" + bi.ID(),
-		ObjectID: bi.object.ID(),
-		Label:    bi.object.Label(),
-		Img:      fmt.Sprintf("statics/img/%s.png", bi.img),
-	}
-
-	return itemTemplate("statics/items/button.html", data)
-}
-
 func (bi *ButtonItem) MarshalJSON() ([]byte, error) {
 	return marshalJSON(bi)
 }
@@ -82,6 +61,7 @@ func newButton(id string, label string, device interface{}) *Button {
 	s.items[ItemID] = &ButtonItem{
 		AnItem: AnItem{
 			object: s,
+			kind:   "button",
 			img:    "switch",
 		},
 	}

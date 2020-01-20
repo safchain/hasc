@@ -24,7 +24,6 @@ package hasc
 
 import (
 	"fmt"
-	"html/template"
 	"sync/atomic"
 	"time"
 )
@@ -149,22 +148,6 @@ func (r *Timer) SetState(new string) string {
 	return old
 }
 
-func (ri *TimerItem) HTML() template.HTML {
-	data := struct {
-		ID       string
-		ObjectID string
-		Label    string
-		Img      string
-	}{
-		ID:       ri.object.ID() + "_" + ri.ID(),
-		ObjectID: ri.object.ID(),
-		Label:    ri.object.Label(),
-		Img:      fmt.Sprintf("statics/img/%s.png", ri.img),
-	}
-
-	return itemTemplate("statics/items/timer.html", data)
-}
-
 func (ri *TimerItem) MarshalJSON() ([]byte, error) {
 	return marshalJSON(ri)
 }
@@ -197,6 +180,7 @@ func newTimer(id string, label string, device interface{}, obj Object, opts ...T
 	r.items[ItemID] = &TimerItem{
 		AnItem: AnItem{
 			object: r,
+			kind:   "timer",
 			img:    "switch",
 		},
 	}

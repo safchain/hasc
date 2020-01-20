@@ -25,7 +25,6 @@ package hasc
 import (
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"strings"
 	"time"
 
@@ -208,13 +207,6 @@ func (si *SysMonFloat64Item) Value() string {
 	return fmt.Sprintf("%.2f", si.value)
 }
 
-func (si *SysMonFloat64Item) HTML() template.HTML {
-	si.object.RLock()
-	defer si.object.RUnlock()
-
-	return valueTemplate(si, si.Label(), si.unit, si.img)
-}
-
 func (si *SysMonFloat64Item) Label() string {
 	return si.label
 }
@@ -231,6 +223,7 @@ func (s *SysMon) DiskReadItem(name string) Item {
 	return &SysMonUint64Item{
 		AnItem: AnItem{
 			object: s,
+			kind:   "value",
 			img:    "hdd",
 			index:  200,
 		},
@@ -266,13 +259,6 @@ func (si *SysMonUint64Item) Value() string {
 	return fmt.Sprintf("%d", si.value)
 }
 
-func (si *SysMonUint64Item) HTML() template.HTML {
-	si.object.RLock()
-	defer si.object.RUnlock()
-
-	return valueTemplate(si, si.Label(), si.unit, si.img)
-}
-
 func (si *SysMonUint64Item) Label() string {
 	return si.label
 }
@@ -294,6 +280,7 @@ func newSysMon(id string, label string, refresh time.Duration) *SysMon {
 	s.items[MemUsedPercentID] = &SysMonFloat64Item{
 		AnItem: AnItem{
 			object: s,
+			kind:   "value",
 			img:    "mem",
 			index:  0,
 		},
@@ -305,6 +292,7 @@ func newSysMon(id string, label string, refresh time.Duration) *SysMon {
 	s.items[CPUAvg1ID] = &SysMonFloat64Item{
 		AnItem: AnItem{
 			object: s,
+			kind:   "value",
 			img:    "cpu",
 			index:  1,
 		},
@@ -315,6 +303,7 @@ func newSysMon(id string, label string, refresh time.Duration) *SysMon {
 	s.items[CPUAvg5ID] = &SysMonFloat64Item{
 		AnItem: AnItem{
 			object: s,
+			kind:   "value",
 			img:    "cpu",
 			index:  2,
 		},
@@ -325,6 +314,7 @@ func newSysMon(id string, label string, refresh time.Duration) *SysMon {
 	s.items[CPUAvg15ID] = &SysMonFloat64Item{
 		AnItem: AnItem{
 			object: s,
+			kind:   "value",
 			img:    "cpu",
 			index:  3,
 		},

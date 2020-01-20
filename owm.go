@@ -25,7 +25,6 @@ package hasc
 import (
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"time"
 
 	owm "github.com/briandowns/openweathermap"
@@ -104,27 +103,6 @@ func (ti *TemperatureItem) Value() string {
 	return fmt.Sprintf("%.2f", ti.object.(*OWM).values.Temperature)
 }
 
-func (ti *TemperatureItem) HTML() template.HTML {
-	ti.object.RLock()
-	defer ti.object.RUnlock()
-
-	data := struct {
-		ID        string
-		Label     string
-		ItemLabel string
-		Unit      string
-		Img       string
-	}{
-		ID:        ti.object.ID() + "_" + ti.ID(),
-		Label:     ti.object.Label(),
-		ItemLabel: ti.Label(),
-		Unit:      "°",
-		Img:       fmt.Sprintf("statics/img/%s.png", ti.img),
-	}
-
-	return itemTemplate("statics/items/value.html", data)
-}
-
 func (ti *TemperatureItem) Label() string {
 	return "Temp."
 }
@@ -146,27 +124,6 @@ func (hi *HummidityItem) Value() string {
 	defer hi.object.RUnlock()
 
 	return fmt.Sprintf("%d", hi.object.(*OWM).values.Humidity)
-}
-
-func (hi *HummidityItem) HTML() template.HTML {
-	hi.object.RLock()
-	defer hi.object.RUnlock()
-
-	data := struct {
-		ID        string
-		Label     string
-		ItemLabel string
-		Unit      string
-		Img       string
-	}{
-		ID:        hi.object.ID() + "_" + hi.ID(),
-		Label:     hi.object.Label(),
-		ItemLabel: hi.Label(),
-		Unit:      "%",
-		Img:       fmt.Sprintf("statics/img/%s.png", hi.img),
-	}
-
-	return itemTemplate("statics/items/value.html", data)
 }
 
 func (hi *HummidityItem) Label() string {
@@ -197,14 +154,18 @@ func newOWM(id string, label string, apiKey string, lat float64, lon float64, re
 	o.items[TemperatureID] = &TemperatureItem{
 		AnItem: AnItem{
 			object: o,
+			kind:   "value",
 			img:    "temperature",
+			unit:   "°",
 		},
 	}
 
 	o.items[HummidityID] = &HummidityItem{
 		AnItem: AnItem{
 			object: o,
+			kind:   "value",
 			img:    "humidity",
+			unit:   "%",
 		},
 	}
 

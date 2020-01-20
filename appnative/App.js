@@ -23,13 +23,14 @@ class Main extends Component {
       const value = await AsyncStorage.getItem('@settings');
       if (value !== null) {
         const data = JSON.parse(value);
+        const auth = data.password ? `${data.username}:${data.password}@` : '';
 
         NetworkInfo.getSSID().then(ssid => {
           if (ssid === data.wifiSSID) {
-            const url = `http://${data.wifiAddress}/?mode=native&username=${data.username}&password=${data.password}`
+            const url = `http://${auth}${data.wifiAddress}/?mode=native&username=${data.username}&password=${data.password}`
             this.setState({ url: url });
           } else {
-            const url = `http://${data.remoteAddress}/?mode=native&username=${data.username}&password=${data.password}`
+            const url = `http://${auth}${data.remoteAddress}/?mode=native&username=${data.username}&password=${data.password}`
             this.setState({ url: url });
           }
         });

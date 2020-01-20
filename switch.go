@@ -22,11 +22,6 @@
 
 package hasc
 
-import (
-	"fmt"
-	"html/template"
-)
-
 type Switch struct {
 	AnObject
 }
@@ -67,22 +62,6 @@ func (s *Switch) SetState(new string) string {
 	return old
 }
 
-func (si *SwitchItem) HTML() template.HTML {
-	data := struct {
-		ID       string
-		ObjectID string
-		Label    string
-		Img      string
-	}{
-		ID:       si.object.ID() + "_" + si.ID(),
-		ObjectID: si.object.ID(),
-		Label:    si.object.Label(),
-		Img:      fmt.Sprintf("statics/img/%s.png", si.img),
-	}
-
-	return itemTemplate("statics/items/switch.html", data)
-}
-
 func (si *SwitchItem) MarshalJSON() ([]byte, error) {
 	return marshalJSON(si)
 }
@@ -101,6 +80,7 @@ func newSwitch(id string, label string, device interface{}) *Switch {
 	s.items[ItemID] = &SwitchItem{
 		AnItem: AnItem{
 			object: s,
+			kind:   "switch",
 			img:    "switch",
 		},
 	}

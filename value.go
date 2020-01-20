@@ -22,15 +22,12 @@
 
 package hasc
 
-import "html/template"
-
 type Value struct {
 	AnObject
 }
 
 type ValueItem struct {
 	AnItem
-	unit string
 }
 
 func (v *Value) SetState(new string) string {
@@ -41,13 +38,6 @@ func (v *Value) SetState(new string) string {
 	v.notifyListeners(old, new)
 
 	return old
-}
-
-func (vi *ValueItem) HTML() template.HTML {
-	vi.object.RLock()
-	defer vi.object.RUnlock()
-
-	return valueTemplate(vi, "", vi.unit, vi.img)
 }
 
 func (vi *ValueItem) MarshalJSON() ([]byte, error) {
@@ -66,9 +56,10 @@ func newValue(id string, label string, unit string) *Value {
 	v.items[ItemID] = &ValueItem{
 		AnItem: AnItem{
 			object: v,
+			kind:   "value",
 			img:    "chart",
+			unit:   unit,
 		},
-		unit: unit,
 	}
 
 	return v

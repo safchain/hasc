@@ -23,8 +23,6 @@
 package hasc
 
 import (
-	"fmt"
-	"html/template"
 	"net"
 	"sync/atomic"
 	"time"
@@ -115,20 +113,6 @@ func (n *NetMon) refresh(refresh time.Duration) {
 	}
 }
 
-func (ni *NetMonItem) HTML() template.HTML {
-	data := struct {
-		ID    string
-		Label string
-		Img   string
-	}{
-		ID:    ni.object.ID() + "_" + ni.ID(),
-		Label: ni.object.Label(),
-		Img:   fmt.Sprintf("statics/img/%s.png", ni.img),
-	}
-
-	return itemTemplate("statics/items/netmon.html", data)
-}
-
 func (ni *NetMonItem) MarshalJSON() ([]byte, error) {
 	return marshalJSON(ni)
 }
@@ -154,6 +138,7 @@ func newNetMon(id string, label string, address string, refresh time.Duration, r
 	n.items[ItemID] = &NetMonItem{
 		AnItem: AnItem{
 			object: n,
+			kind:   "state",
 			img:    "netmon",
 		},
 	}

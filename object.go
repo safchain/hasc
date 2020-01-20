@@ -24,7 +24,6 @@ package hasc
 
 import (
 	"encoding/json"
-	"html/template"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -44,18 +43,21 @@ type Item interface {
 	ID() string
 	Object() Object
 	Value() string
-	HTML() template.HTML
 	SetImg(img string)
 	Img() string
 	Label() string
 	MarshalJSON() ([]byte, error)
 	Index() int
+	Type() string
+	Unit() string
 }
 
 type AnItem struct {
 	object Object
+	kind   string
 	img    string
 	index  int
+	unit   string
 }
 
 type Object interface {
@@ -70,6 +72,7 @@ type Object interface {
 	Unlock()
 	RLock()
 	RUnlock()
+	LastStateUpdate() time.Time
 }
 
 type AnObject struct {
@@ -132,15 +135,18 @@ func (a *AnObject) SetState(state string) string {
 	return old
 }
 
+func (a *AnObject) LastStateUpdate() time.Time {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+
+	return a.lastStateUpdate
+}
+
 func (a *AnObject) State() string {
 	a.lock.RLock()
 	defer a.lock.RUnlock()
 
 	return a.state
-}
-
-func (a *AnObject) HTML() template.HTML {
-	return ""
 }
 
 type byIndex []Item
@@ -218,18 +224,39 @@ func (ai *AnItem) ID() string {
 	return ItemID
 }
 
+func (ai *AnItem) Type() string {
+	return ai.kind
+}
+
+func (ai *AnItem) Unit() string {
+	return ai.unit
+}
+
 func marshalJSON(item Item) ([]byte, error) {
+	const layout = "15:04:05"
+	var lastUpdate string
+
+	if !item.Object().LastStateUpdate().IsZero() {
+		lastUpdate = item.Object().LastStateUpdate().Format(layout)
+	}
+
 	return json.Marshal(&struct {
-		ID       string `json:"id"`
-		ObjectID string `json:"oid"`
-		Label    string `json:"label"`
-		Value    string `json:"value"`
-		Img      string `json:"img"`
+		ID         string `json:"id"`
+		ObjectID   string `json:"oid"`
+		Type       string `json:"type"`
+		Label      string `json:"label"`
+		Value      string `json:"value"`
+		Img        string `json:"img"`
+		Unit       string `json:"unit"`
+		LastUpdate string `json:"lastupdate"`
 	}{
-		ID:       item.ID(),
-		ObjectID: item.Object().ID(),
-		Label:    item.Label(),
-		Value:    item.Value(),
-		Img:      item.Img(),
+		ID:         item.ID(),
+		ObjectID:   item.Object().ID(),
+		Type:       item.Type(),
+		Label:      item.Label(),
+		Value:      item.Value(),
+		Img:        item.Img(),
+		Unit:       item.Unit(),
+		LastUpdate: lastUpdate,
 	})
 }
