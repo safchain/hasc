@@ -30,7 +30,7 @@ import (
 )
 
 type Serial struct {
-	AnObject
+	AnItem
 	dev  string
 	baud int
 	port *serial.Port
@@ -55,33 +55,25 @@ func (s *Serial) read() {
 		}
 		if n > 0 {
 			new := strings.TrimSpace(string(buf[0:n]))
-			old := s.AnObject.SetState(new)
-
-			Log.Infof("Serial %s changed to %s", s.ID(), new)
-
-			s.notifyListeners(old, new)
+			old, updated := s.AnItem.SetValue(new)
+			if updated {
+				s.notifyListeners(old, new)
+			}
 		}
 	}
 }
 
-func (s *Serial) SetState(new string) string {
-	Log.Infof("Serial %s set to %s", s.ID(), new)
-
-	old := s.AnObject.SetState(new)
-
-	s.notifyListeners(old, new)
-
-	Log.Infof("Serial %s send payload: %s", s.ID(), new)
-
-	s.Lock()
-	port := s.port
-	s.Unlock()
-
-	if _, err := port.Write([]byte(new + "\n")); err != nil {
+func (s *Serial) SetValue(new string) (string, bool) {
+	if _, err := s.port.Write([]byte(new + "\n")); err != nil {
 		s.openPort()
 	}
 
-	return old
+	old, updated := s.AnItem.SetValue(new)
+	if updated {
+		s.notifyListeners(old, new)
+	}
+
+	return old, updated
 }
 
 func (s *Serial) openPort() error {
@@ -98,11 +90,14 @@ func (s *Serial) openPort() error {
 	return nil
 }
 
-func newSerial(id string, label string, dev string, baud int) *Serial {
+func NewSerial(id string, label string, dev string, baud int) *Serial {
 	s := &Serial{
-		AnObject: AnObject{
+		AnItem: AnItem{
 			id:    id,
 			label: label,
+			kind:  "value",
+			img:   "chart",
+			unit:  "",
 		},
 		dev:  dev,
 		baud: baud,
@@ -114,13 +109,5 @@ func newSerial(id string, label string, dev string, baud int) *Serial {
 
 	go s.read()
 
-	return s
-}
-
-// RegisterSerial listens serial device. Set the state with the value read from the serial port
-// and write to the serial port the state changes.
-func RegisterSerial(id string, label string, dev string, baud int) *Serial {
-	s := newSerial(id, label, dev, baud)
-	RegisterObject(s)
 	return s
 }

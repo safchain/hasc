@@ -47,13 +47,11 @@ import (
 	"github.com/spf13/viper"
 )
 
-type eventListener struct {
-}
+type eventListener struct{}
 
 type row struct {
-	Label string
-	Img   string
-	Items []Item
+	Item     Item
+	SubItems []Item
 }
 
 type layout struct {
@@ -80,97 +78,36 @@ var (
 	// Cfg config file parser.
 	Cfg *viper.Viper
 
-	listener  eventListener
-	state     stateListener
-	objects   map[string]Object
+	registry *Registry
+	listener eventListener
+	value    valueListener
+
 	router    *mux.Router
 	wsclients map[*wsclient]*wsclient
 	lock      sync.RWMutex
 )
 
-func (r *row) MarshalJSON() ([]byte, error) {
-	if r.Label != "" {
-		return json.Marshal(&struct {
-			Label string `json:"label"`
-			Img   string `json:"img"`
-			Items []Item `json:"items"`
-		}{
-			Label: r.Label,
-			Img:   r.Img,
-			Items: r.Items,
-		})
-	}
-	return json.Marshal(r.Items[0])
+func SetValueListener(fnc func(item Item, old string, new string)) {
+	value.setCallbackFnc(fnc)
 }
 
-// RegisterObject registers the given object.
-func RegisterObject(o Object) Object {
-	lock.Lock()
-	defer lock.Unlock()
-
-	if _, ok := objects[o.ID()]; ok {
-		Log.Fatalf("can't register two object with the same ID: %s", o.ID())
-	}
-
-	Log.Infof("Register new %T: %s(%s)", o, o.ID(), o.Label())
-	objects[o.ID()] = o
-
-	// listen for item object changes
-	o.AddObjectListener(listener)
-	o.AddObjectListener(&state)
-
-	return o
-}
-
-// ObjectFromID looks up for an registered object for the given id.
-func ObjectFromID(id string) Object {
-	lock.RLock()
-	defer lock.RUnlock()
-
-	o, ok := objects[id]
-	if !ok {
-		Log.Errorf("Object ID not found: %s", id)
-
-		// return fake object so that no need to check nil value
-		return &AnObject{}
-	}
-	return o
-}
-
-// SetObjectIDState set state of the given object id
-func SetObjectIDState(id string, state string) {
-	ObjectFromID(id).SetState(state)
-}
-
-func Objects() []Object {
-	lock.RLock()
-	defer lock.RUnlock()
-
-	var l []Object
-	for _, o := range objects {
-		l = append(l, o)
-	}
-	return l
-}
-
-// SetStateListener set a state listener. It is useful to implement gateways for
-// example leveraging a MQTT broker.
-func SetStateListener(fnc func(object Object, old string, new string)) {
-	state.setCallbackFnc(fnc)
-}
-
-func getObjectState(w http.ResponseWriter, r *http.Request) {
+func getItemValue(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
-	object := ObjectFromID(params["id"])
-	w.Write([]byte(object.State()))
+	item := registry.Get(params["id"])
+	if item != nil {
+		w.Write([]byte(item.Value()))
+	}
 }
 
-func setObjectState(w http.ResponseWriter, r *http.Request) {
+func setItemValue(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
-	data, _ := ioutil.ReadAll(r.Body)
-	ObjectFromID(params["id"]).SetState(string(data))
+	item := registry.Get(params["id"])
+	if item != nil {
+		data, _ := ioutil.ReadAll(r.Body)
+		item.SetValue(string(data))
+	}
 }
 
 func asset(path string, w http.ResponseWriter, r *http.Request) {
@@ -208,10 +145,10 @@ func indexJSON(w http.ResponseWriter, r *http.Request) {
 
 	o := struct {
 		HascVer string
-		Items   []row
+		Rows    []row
 	}{
 		HascVer: Version,
-		Items:   Layout.rows,
+		Rows:    Layout.rows,
 	}
 
 	e.Encode(o)
@@ -233,36 +170,18 @@ func websocket(w http.ResponseWriter, r *http.Request) {
 	}
 	Log.Infof("websocket new client from: %s", r.Host)
 
-	// resend all item values
-	for _, row := range Layout.rows {
-		for _, item := range row.Items {
-			b, err := json.Marshal(item)
-			if err != nil {
-				Log.Errorf("websocket error while writing message: %s", err)
-				continue
-			}
-			Log.Infof("websocket send message: %s", string(b))
+	for _, item := range registry.Items() {
+		b, err := json.Marshal(item)
+		if err != nil {
+			Log.Errorf("websocket error while writing message: %s", err)
+			continue
+		}
+		Log.Infof("websocket send message: %s", string(b))
 
-			err = wsutil.WriteServerMessage(conn, ws.OpText, b)
-			if err != nil {
-				Log.Warningf("websocket error while writing message: %s", err)
-				continue
-			}
-
-			if _, ok := item.(*GroupItem); ok {
-				for _, subItem := range item.Object().Items() {
-					b, err := json.Marshal(subItem)
-					if err != nil {
-						Log.Errorf("websocket error while writing message: %s", err)
-						continue
-					}
-
-					err = wsutil.WriteServerMessage(conn, ws.OpText, b)
-					if err != nil {
-						Log.Warningf("websocket error while writing message: %s", err)
-					}
-				}
-			}
+		err = wsutil.WriteServerMessage(conn, ws.OpText, b)
+		if err != nil {
+			Log.Warningf("websocket error while writing message: %s", err)
+			continue
 		}
 	}
 
@@ -324,7 +243,8 @@ func websocket(w http.ResponseWriter, r *http.Request) {
 	}()
 }
 
-func notifyItemStateChange(item Item) {
+func (l eventListener) OnValueChange(item Item, old string, new string) {
+	lock.RLock()
 	for _, client := range wsclients {
 		b, err := json.Marshal(item)
 		if err != nil {
@@ -334,43 +254,29 @@ func notifyItemStateChange(item Item) {
 		Log.Infof("websocket send message to %s: %s", client.addr, string(b))
 		client.wch <- b
 	}
+	lock.RUnlock()
 }
 
-func (l eventListener) OnStateChange(object Object, old string, new string) {
-	lock.RLock()
-	defer lock.RUnlock()
-
-	for _, row := range Layout.rows {
-		for _, item := range row.Items {
-			if item.Object().ID() == object.ID() {
-				notifyItemStateChange(item)
-			}
-			if _, ok := item.(*GroupItem); ok {
-				for _, subitem := range item.Object().Items() {
-					if subitem.Object().ID() == object.ID() {
-						notifyItemStateChange(subitem)
-					}
-				}
-			}
-		}
-	}
-}
-
-// AddItem adds the given item to the server layout.
 func (l *layout) AddItem(item Item) {
 	lock.Lock()
 	defer lock.Unlock()
 
-	l.rows = append(l.rows, row{Items: []Item{item}})
+	l.rows = append(l.rows, row{Item: item})
 }
 
-// AddItems adds the items to the server layout. The given label, image will be
-// used to render the item group.
-func (l *layout) AddItems(label string, img string, items ...Item) {
+func (l *layout) AddItems(item Item, subItems ...Item) {
 	lock.Lock()
 	defer lock.Unlock()
 
-	l.rows = append(l.rows, row{Label: label, Img: img, Items: items})
+	l.rows = append(l.rows, row{Item: item, SubItems: subItems})
+}
+
+func GetItem(id string) Item {
+	item := registry.Get(id)
+	if item == nil {
+		return &AnItem{}
+	}
+	return item
 }
 
 func listenAndServe() {
@@ -395,9 +301,6 @@ func (a *Auth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Start start the server. It starts the WebSocket server, listens for objects state
-// changes and forward them trough WebSocket. The onInit callback has to be used
-// to register objects.
 func Start(name string, onInit func()) {
 	format := logging.MustStringFormatter(`%{color}%{time:15:04:05.000} ▶ %{level:.6s}%{color:reset} %{message}`)
 	logging.SetFormatter(format)
@@ -439,8 +342,8 @@ Complete documentation is available at http://github.com/safchain/hasc`, name)
 		router.HandleFunc("/", index).Methods("GET")
 		router.PathPrefix("/static").HandlerFunc(assetHandler).Methods("GET")
 		router.PathPrefix("/statics").HandlerFunc(assetHandler).Methods("GET")
-		router.HandleFunc("/object/{id}", getObjectState).Methods("GET")
-		router.HandleFunc("/object/{id}", setObjectState).Methods("POST")
+		router.HandleFunc("/item/{id}", getItemValue).Methods("GET")
+		router.HandleFunc("/item/{id}", setItemValue).Methods("POST")
 		router.HandleFunc("/ws", websocket)
 
 		headersOk := handlers.AllowedHeaders([]string{"Authorization"})
@@ -457,7 +360,8 @@ Complete documentation is available at http://github.com/safchain/hasc`, name)
 		}
 		http.Handle("/", handler)
 
-		objects = make(map[string]Object)
+		registry = NewRegistry(&value, listener)
+
 		wsclients = make(map[*wsclient]*wsclient)
 
 		KV = newKVStore()

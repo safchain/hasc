@@ -22,43 +22,33 @@
 
 package hasc
 
-import (
-	"encoding/json"
-)
-
 type Group struct {
-	AnObject
-	objects []Object
-}
-
-type GroupItem struct {
 	AnItem
+	items []Item
 }
 
 func (g *Group) on() {
-	Log.Infof("Group %s set to ON", g.ID())
-
-	old := g.SetState(ON)
-
-	g.notifyListeners(old, ON)
+	old, updated := g.AnItem.SetValue(ON)
+	if updated {
+		g.notifyListeners(old, ON)
+	}
 }
 
 func (g *Group) off() {
-	Log.Infof("Group %s set to OFF", g.ID())
-
-	old := g.SetState(OFF)
-
-	g.notifyListeners(old, OFF)
+	old, updated := g.AnItem.SetValue(OFF)
+	if updated {
+		g.notifyListeners(old, OFF)
+	}
 }
 
 func (g *Group) refresh() {
 	g.RLock()
-	off := g.state == OFF || g.state == ""
+	off := g.value == OFF || g.value == ""
 	g.RUnlock()
 
 	new := OFF
-	for _, object := range g.objects {
-		os := object.State()
+	for _, item := range g.items {
+		os := item.Value()
 		if os != OFF && os != "" {
 			new = ON
 
@@ -74,85 +64,35 @@ func (g *Group) refresh() {
 	}
 }
 
-func (g *Group) OnStateChange(object Object, old string, new string) {
+func (g *Group) OnValueChange(item Item, old string, new string) {
 	g.refresh()
 }
 
 // Add adds an Object to the group.
-func (g *Group) Add(o Object) {
-	g.objects = append(g.objects, o)
+func (g *Group) Add(item Item) {
+	g.items = append(g.items, item)
 
-	o.AddObjectListener(g)
+	item.AddListener(g)
 
 	g.refresh()
 }
 
 func (g *Group) Items() []Item {
-	items := []Item{
-		g.Item(),
-	}
-	for _, object := range g.objects {
-		for _, item := range object.Items() {
-			items = append(items, item)
-		}
-	}
-	return items
+	return g.items
 }
 
-func (gi *GroupItem) MarshalJSON() ([]byte, error) {
-	var items []Item
-
-	for _, object := range gi.object.(*Group).objects {
-		for _, item := range object.Items() {
-			items = append(items, item)
-		}
-	}
-
-	return json.Marshal(&struct {
-		ID       string `json:"id"`
-		ObjectID string `json:"oid"`
-		Type     string `json:"type"`
-		Label    string `json:"label"`
-		Value    string `json:"value"`
-		Img      string `json:"img"`
-		Items    []Item `json:"items"`
-	}{
-		ID:       gi.ID(),
-		ObjectID: gi.Object().ID(),
-		Type:     gi.Type(),
-		Label:    gi.Object().Label(),
-		Value:    gi.Value(),
-		Img:      gi.Img(),
-		Items:    items,
-	})
-}
-
-func newGroup(id string, label string) *Group {
+func NewGroup(id string, label string) *Group {
 	g := &Group{
-		AnObject: AnObject{
+		AnItem: AnItem{
 			id:    id,
 			label: label,
-			items: make(map[string]Item),
-			state: OFF,
+			kind:  "state",
+			img:   "group",
+			value: OFF,
 		},
 	}
 
-	g.items[ItemID] = &GroupItem{
-		AnItem: AnItem{
-			object: g,
-			kind:   "state",
-			img:    "group",
-		},
-	}
+	registry.Add(g)
 
-	return g
-}
-
-// RegisterGroup registers a new group with the given ID and label. Group
-// is a collection of Objects. The state of the Group reflects the state of
-// the hosted objects using a OR operator.
-func RegisterGroup(id string, label string) *Group {
-	g := newGroup(id, label)
-	RegisterObject(g)
 	return g
 }

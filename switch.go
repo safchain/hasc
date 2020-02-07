@@ -23,76 +23,53 @@
 package hasc
 
 type Switch struct {
-	AnObject
-}
-
-type SwitchItem struct {
 	AnItem
 }
 
-func (s *Switch) on() string {
-	Log.Infof("Switch %s set to ON", s.ID())
+func (s *Switch) on() (string, bool) {
+	old, updated := s.AnItem.SetValue(ON)
+	if updated {
+		s.notifyListeners(old, ON)
+	}
 
-	old := s.AnObject.SetState(ON)
-
-	s.notifyListeners(old, ON)
-
-	return old
+	return old, updated
 }
 
-func (s *Switch) off() string {
-	Log.Infof("Switch %s set to OFF", s.ID())
+func (s *Switch) off() (string, bool) {
+	old, updated := s.AnItem.SetValue(OFF)
+	if updated {
+		s.notifyListeners(old, OFF)
+	}
 
-	old := s.AnObject.SetState(OFF)
-
-	s.notifyListeners(old, OFF)
-
-	return old
+	return old, updated
 }
 
-func (s *Switch) SetState(new string) string {
+func (s *Switch) SetValue(new string) (string, bool) {
 	var old string
+	var updated bool
+
 	switch new {
 	case "on", "ON", "1":
-		old = s.on()
+		old, updated = s.on()
 	default:
-		old = s.off()
+		old, updated = s.off()
 	}
 
-	return old
+	return old, updated
 }
 
-func (si *SwitchItem) MarshalJSON() ([]byte, error) {
-	return marshalJSON(si)
-}
-
-func newSwitch(id string, label string, device interface{}) *Switch {
+func NewSwitch(id string, label string) *Switch {
 	s := &Switch{
-		AnObject: AnObject{
-			id:     id,
-			label:  label,
-			device: device,
-			items:  make(map[string]Item),
-			state:  OFF,
-		},
-	}
-
-	s.items[ItemID] = &SwitchItem{
 		AnItem: AnItem{
-			object: s,
-			kind:   "switch",
-			img:    "switch",
+			id:    id,
+			label: label,
+			kind:  "switch",
+			img:   "switch",
+			value: OFF,
 		},
 	}
 
-	return s
-}
+	registry.Add(s)
 
-// RegisterSwitch register a new Switch. A switch has two states ON or OFF.
-// It will emit a message on the bus when changing state from ON to OFF and
-// vise versa.
-func RegisterSwitch(id string, label string, device interface{}) *Switch {
-	s := newSwitch(id, label, device)
-	RegisterObject(s)
 	return s
 }

@@ -28,41 +28,41 @@ import (
 )
 
 func TestTimer1(t *testing.T) {
-	o := &AnObject{id: "111"}
+	o := &AnItem{id: "111"}
 
-	tm := newTimer("AAA", "AAA", nil, o, TimerOpts{OnAfter: 1 * time.Second, OffAfter: 2 * time.Second, Timeout: 500 * time.Millisecond})
+	tm := NewTimer("AAA", "AAA", o, TimerOpts{OnAfter: 1 * time.Second, OffAfter: 2 * time.Second, Timeout: 500 * time.Millisecond})
 
-	if o.State() == ON {
-		t.Fatalf("should get OFF state, got: %s", o.State())
+	if o.Value() == ON {
+		t.Fatalf("should get OFF state, got: %s", o.Value())
 	}
 
-	tm.SetState(ON)
-	if o.State() == ON {
-		t.Fatalf("should get OFF state, got: %s", o.State())
+	tm.SetValue(ON)
+	if o.Value() == ON {
+		t.Fatalf("should get OFF state, got: %s", o.Value())
 	}
 	time.Sleep(600 * time.Millisecond)
-	tm.SetState(ON)
-	if o.State() == ON {
-		t.Fatalf("should get OFF state, got: %s", o.State())
+	tm.SetValue(ON)
+	if o.Value() == ON {
+		t.Fatalf("should get OFF state, got: %s", o.Value())
 	}
 
-	if tm.State() != ON {
-		t.Fatalf("should get ON state, got: %s", tm.State())
+	if tm.Value() != ON {
+		t.Fatalf("should get ON state, got: %s", tm.Value())
 	}
 
 	time.Sleep(300 * time.Millisecond)
-	tm.SetState(ON)
-	if o.State() == ON {
-		t.Fatalf("should get OFF state, got: %s", o.State())
+	tm.SetValue(ON)
+	if o.Value() == ON {
+		t.Fatalf("should get OFF state, got: %s", o.Value())
 	}
 	time.Sleep(300 * time.Millisecond)
-	tm.SetState(ON)
-	if o.State() != ON {
-		t.Fatalf("should get ON state, got: %s", o.State())
+	tm.SetValue(ON)
+	if o.Value() != ON {
+		t.Fatalf("should get ON state, got: %s", o.Value())
 	}
 
 	time.Sleep(3 * time.Second)
-	if o.State() == ON {
-		t.Fatalf("should get OFF state, got: %s", o.State())
+	if o.Value() == ON {
+		t.Fatalf("should get OFF state, got: %s", o.Value())
 	}
 }

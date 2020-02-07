@@ -42,10 +42,10 @@ type Subscriber struct {
 // MQTTConn Object
 type MQTTConn struct {
 	sync.RWMutex
+	connected   int64
 	broker      string
 	client      mqtt.Client
 	subscribers []*Subscriber
-	connected   int64
 }
 
 func (m *MQTTConn) Subscribe(topic string, handler MessageHandler) {

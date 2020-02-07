@@ -78,52 +78,50 @@ func (i *InfluxDB) createCQs(name string) error {
 	return nil
 }
 
-func (i *InfluxDB) OnStateChange(object Object, old string, new string) {
-	id := object.ID()
+func (i *InfluxDB) OnValueChange(item Item, old string, new string) {
+	id := item.ID()
 	Log.Infof("InfluxDB insert data points for %s", id)
 
-	for _, item := range object.Items() {
-		tags := make(map[string]string)
-		tags[id] = item.ID()
+	tags := make(map[string]string)
+	tags[id] = item.ID()
 
-		var f float64
-		var err error
+	var f float64
+	var err error
 
-		value := item.Value()
-		switch value {
-		case "on", "ON":
-			f = 1.0
-		case "off", "OFF":
-			f = 0.0
-		default:
-			f, err = strconv.ParseFloat(value, 64)
-			if err != nil {
-				Log.Errorf("InfluxDB value %s is not a numeric: %s", item.Value(), err)
-				continue
-			}
-		}
-
-		fields := map[string]interface{}{
-			"value": f,
-		}
-
-		name := id + "-" + item.ID()
-		if _, ok := i.cq[name]; !ok {
-			if err = i.createCQs(name); err != nil {
-				Log.Errorf("InfluxDB unable to create CQs for %s: %s", name, err)
-				continue
-			}
-			i.cq[name] = true
-		}
-
-		pt, err := influxdb.NewPoint(name, tags, fields, time.Now())
+	value := item.Value()
+	switch value {
+	case "on", "ON":
+		f = 1.0
+	case "off", "OFF":
+		f = 0.0
+	default:
+		f, err = strconv.ParseFloat(value, 64)
 		if err != nil {
-			Log.Errorf("InfluxDB new point error: %s", err)
+			Log.Errorf("InfluxDB value %s is not a numeric: %s", item.Value(), err)
 			return
 		}
-
-		i.addPoint(pt)
 	}
+
+	fields := map[string]interface{}{
+		"value": f,
+	}
+
+	name := id + "-" + item.ID()
+	if _, ok := i.cq[name]; !ok {
+		if err = i.createCQs(name); err != nil {
+			Log.Errorf("InfluxDB unable to create CQs for %s: %s", name, err)
+			return
+		}
+		i.cq[name] = true
+	}
+
+	pt, err := influxdb.NewPoint(name, tags, fields, time.Now())
+	if err != nil {
+		Log.Errorf("InfluxDB new point error: %s", err)
+		return
+	}
+
+	i.addPoint(pt)
 }
 
 func (i *InfluxDB) addPoint(pt *influxdb.Point) {
@@ -193,6 +191,10 @@ func (i *InfluxDB) createDatabase() error {
 	}
 
 	return nil
+}
+
+func (i *InfluxDB) Watch(item Item) {
+	item.AddListener(i)
 }
 
 // NewInfluxDB returns a new instance of influxdb time series database. It implements

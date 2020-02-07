@@ -15,7 +15,8 @@ import Container from '@material-ui/core/Container';
 import { withSnackbar, WithSnackbarProps, VariantType } from 'notistack';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faTemperatureHigh, faChartBar, faTint, faFan, faWindowMaximize, faFire, faHdd } from '@fortawesome/free-solid-svg-icons';
-import { faMemory, faLaptop, faSlidersH, faBug, faLayerGroup, faMicrochip, faBolt } from '@fortawesome/free-solid-svg-icons';
+import { faMemory, faLaptop, faSlidersH, faBug, faLayerGroup, faMicrochip, faBolt, faMoneyBillAlt } from '@fortawesome/free-solid-svg-icons';
+import { faBurn, faPlug, faShower, faClock, faStopwatch } from '@fortawesome/free-solid-svg-icons';
 import { faKey } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Fab from '@material-ui/core/Fab';
@@ -45,32 +46,42 @@ library.add(faBug, faKey);
 library.add(faLayerGroup, faKey);
 library.add(faMicrochip, faKey);
 library.add(faBolt, faKey);
+library.add(faMoneyBillAlt, faKey);
+library.add(faBurn, faKey);
+library.add(faShower, faKey);
+library.add(faPlug, faKey);
+library.add(faClock, faKey);
+library.add(faStopwatch, faKey);
 
 interface Props extends WithSnackbarProps { }
 
+interface Row {
+  Item: Item
+  SubItems?: Array<Item>
+}
+
 interface Item {
-  id: string
-  oid: string
-  type: string
-  label: string
-  value: string
-  img: string
-  unit: string
-  items?: Array<Item>
-  lastupdate: string
+  ID: string
+  Type: string
+  Label: string
+  Value: string
+  Img: string
+  Unit: string
+  LastUpdate: string
 }
 
 interface ItemRenderProps {
   className?: string
-  oid: string
-  type: string
-  label: string
-  value: string
-  img: string
-  unit: string
-  items?: Array<Item>
-  lastupdate: string
   baseUrl: string
+
+  ID: string
+  Type: string
+  Label: string
+  Value: string
+  Img: string
+  Unit: string
+  SubItems?: Array<Item>
+  LastUpdate: string
 }
 
 interface IconRenderProps {
@@ -105,6 +116,18 @@ const RenderIcon: React.FC<IconRenderProps> = (props) => {
       return (<FontAwesomeIcon icon="microchip" />);
     case "electricity":
       return (<FontAwesomeIcon icon="bolt" />);
+    case "price":
+      return (<FontAwesomeIcon icon="money-bill-alt" />);
+    case "boiler":
+      return (<FontAwesomeIcon icon="burn" />);
+    case "shower":
+      return (<FontAwesomeIcon icon="shower" />);
+    case "plug":
+      return (<FontAwesomeIcon icon="plug" />);
+    case "clock":
+      return (<FontAwesomeIcon icon="clock" />);
+    case "timer":
+      return (<FontAwesomeIcon icon="stopwatch" />);
   }
 
   return (
@@ -113,19 +136,23 @@ const RenderIcon: React.FC<IconRenderProps> = (props) => {
 };
 
 const RenderSwitch: React.FC<ItemRenderProps> = (props) => {
+  const [checked, setChecked] = React.useState(props.Value == "ON");
+
   const onChange = (event: any) => {
-    fetch(`${props.baseUrl}/object/` + props.oid, {
+    setChecked(!checked)
+
+    fetch(`${props.baseUrl}/item/${props.ID}`, {
       method: 'POST',
-      body: event.target.checked ? "ON" : "OFF"
+      body: !checked ? "ON" : "OFF"
     })
   }
 
   return (
     <Switch
       edge="end"
-      value={props.value === "ON"}
       color="primary"
       onChange={onChange}
+      checked={props.Value == "ON"}
     />
   )
 };
@@ -134,15 +161,15 @@ const RenderButton: React.FC<ItemRenderProps> = (props) => {
   const classes = useStyles();
 
   return (
-    <Button variant="contained" color="primary" className={props.value === "ON" ? classes.btnGreen : ""}>
-      {props.label}
+    <Button variant="contained" color="primary" className={props.Value === "ON" ? classes.btnGreen : ""}>
+      {props.Label}
     </Button>
   )
 };
 
 const RenderValue: React.FC<ItemRenderProps> = (props) => {
   return (
-    <Typography>{props.value}{props.unit}</Typography>
+    <Typography>{props.Value}{props.Unit}</Typography>
   )
 };
 
@@ -166,7 +193,7 @@ const RenderGroupButton: React.FC<groupRenderProps> = (props) => {
 const RenderState: React.FC<ItemRenderProps> = (props) => {
   const classes = useStyles();
 
-  if (props.value === "ON") {
+  if (props.Value === "ON") {
     return (
       <Fab color="primary" aria-label="OK" size="small" className={classes.fabGreen}>
         <CheckIcon />
@@ -183,7 +210,7 @@ const RenderState: React.FC<ItemRenderProps> = (props) => {
 const RenderType: React.FC<ItemRenderProps> = (props) => {
   const classes = useStyles();
 
-  switch (props.type) {
+  switch (props.Type) {
     case "switch":
       return (
         <RenderSwitch {...props} />
@@ -201,12 +228,12 @@ const RenderType: React.FC<ItemRenderProps> = (props) => {
         <RenderButton {...props} />
       )
     case "timer":
-      const value = props.value === "OFF" ? "OFF" : "ON";
-      const count = (props.value !== "OFF" && props.value !== "ON") ? props.value : "0"
+      const value = props.Value === "OFF" ? "OFF" : "ON";
+      const count = (props.Value !== "OFF" && props.Value !== "ON") ? props.Value : "0"
 
       return (
         <Badge color="primary" badgeContent={count}>
-          <Button variant="contained" color="primary" className={props.value === "ON" ? classes.btnGreen : classes.btnRed}>
+          <Button variant="contained" color="primary" className={props.Value === "ON" ? classes.btnGreen : classes.btnRed}>
             {value}
           </Button>
         </Badge>
@@ -218,13 +245,6 @@ const RenderType: React.FC<ItemRenderProps> = (props) => {
   }
 };
 
-const ItemID = (item: Item): string => {
-  if (item.oid && item.id) {
-    return item.oid + '-' + item.id
-  }
-  return item.label.toLowerCase()
-};
-
 const RenderItem: React.FC<ItemRenderProps> = (props) => {
   const classes = useStyles();
   const [open, setOpen] = React.useState(false);
@@ -234,28 +254,27 @@ const RenderItem: React.FC<ItemRenderProps> = (props) => {
       <ListItem className={props.className} onClick={() => { setOpen(!open) }}>
         <ListItemIcon>
           <React.Fragment>
-            <RenderGroupButton items={props.items} isOpen={open} />
-            <RenderIcon img={props.img} />
+            <RenderGroupButton items={props.SubItems} isOpen={open} />
+            <RenderIcon img={props.Img} />
           </React.Fragment>
         </ListItemIcon>
-        <ListItemText primary={props.label} secondary={props.lastupdate ? "Updated: " + props.lastupdate : ""} />
+        <ListItemText primary={props.Label} secondary={props.LastUpdate ? "Updated: " + props.LastUpdate : ""} />
         <ListItemSecondaryAction>
           <RenderType {...props} />
         </ListItemSecondaryAction>
       </ListItem>
-      {props.items &&
+      {props.SubItems &&
         <Collapse in={open} timeout="auto" unmountOnExit>
           <List component="div" disablePadding>
-            {props.items.map((item: Item) => (
-              <RenderItem key={ItemID(item)} className={classes.nested}
-                oid={item.oid}
-                type={item.type}
-                img={item.img}
-                label={item.label}
-                value={item.value}
-                unit={item.unit}
-                lastupdate={item.lastupdate}
-                items={item.items}
+            {props.SubItems.map((item: Item) => (
+              <RenderItem key={item.ID} className={classes.nested}
+                ID={item.ID}
+                Type={item.Type}
+                Img={item.Img}
+                Label={item.Label}
+                Value={item.Value}
+                Unit={item.Unit}
+                LastUpdate={item.LastUpdate}
                 baseUrl={props.baseUrl}
               />
             ))}
@@ -266,22 +285,26 @@ const RenderItem: React.FC<ItemRenderProps> = (props) => {
   )
 };
 
-const updateData = (item: Item, items: Array<Item>) => {
-  items.forEach((curr: Item, i: number) => {
-
-    if (curr.id === item.id && curr.oid === item.oid) {
-      items[i] = item;
+const updateData = (item: Item, rows: Array<Row>) => {
+  rows.forEach((row: Row, i: number) => {
+    if (row.Item.ID === item.ID) {
+      row.Item = item;
+      return
     }
 
-    if (curr.items) {
-      updateData(item, curr.items);
+    if (row.SubItems) {
+      row.SubItems.forEach((curr: Item, i: number) => {
+        if (curr.ID === item.ID && row.SubItems) {
+          row.SubItems[i] = item
+        }
+      });
     }
   });
 };
 
 const App: React.FC<Props> = (props) => {
   const classes = useStyles();
-  const [data, setData] = useState({ Items: Array<Item>() });
+  const [data, setData] = useState({ Rows: Array<Row>() });
   const [intervalID, setIntervalID] = useState(0);
   const wsRef = useRef<any>(null);
 
@@ -309,8 +332,8 @@ const App: React.FC<Props> = (props) => {
   const onMessage = (msg: string) => {
     var item: Item = JSON.parse(msg)
 
-    updateData(item, data.Items);
-    setData({ Items: data.Items });
+    updateData(item, data.Rows);
+    setData({ Rows: data.Rows });
   };
 
   const onClose = () => {
@@ -374,16 +397,16 @@ const App: React.FC<Props> = (props) => {
       }
       <Container className={clsx(classes.container, !isNative && classes.noHeader)}>
         <List className={classes.content}>
-          {data.Items.map((item: Item) => (
-            <RenderItem key={ItemID(item)}
-              oid={item.oid}
-              type={item.type}
-              img={item.img}
-              label={item.label}
-              value={item.value}
-              unit={item.unit}
-              lastupdate={item.lastupdate}
-              items={item.items}
+          {data.Rows.map((row: Row) => (
+            <RenderItem key={row.Item.ID}
+              ID={row.Item.ID}
+              Type={row.Item.Type}
+              Img={row.Item.Img}
+              Label={row.Item.Label}
+              Value={row.Item.Value}
+              Unit={row.Item.Unit}
+              LastUpdate={row.Item.LastUpdate}
+              SubItems={row.SubItems}
               baseUrl={baseUrl} />
           ))}
         </List>

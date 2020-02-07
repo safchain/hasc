@@ -120,17 +120,17 @@ func (g *GCal) newEventGCal(event *calendar.Event) (*eventGCal, error) {
 			case <-startAfter:
 				re := regexp.MustCompile("(?i)START:\\s*([^\\s]*)\\s*(.*)")
 				if res := re.FindStringSubmatch(event.Description); len(res) > 0 {
-					if obj := ObjectFromID(res[1]); obj != nil {
-						Log.Infof("GCal set %s to %s", obj.ID(), res[2])
-						obj.SetState(res[2])
+					if item := registry.Get(res[1]); item != nil {
+						Log.Infof("GCal set %s to %s", item.ID(), res[2])
+						item.SetValue(res[2])
 					}
 				}
 			case <-endAfter:
 				re := regexp.MustCompile("(?i)END:\\s*([^\\s]*)\\s*(.*)")
 				if res := re.FindStringSubmatch(event.Description); len(res) > 0 {
-					if obj := ObjectFromID(res[1]); obj != nil {
-						Log.Infof("GCal set %s to %s", obj.ID(), res[2])
-						obj.SetState(res[2])
+					if item := registry.Get(res[1]); item != nil {
+						Log.Infof("GCal set %s to %s", item.ID(), res[2])
+						item.SetValue(res[2])
 					}
 				}
 				return

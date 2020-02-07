@@ -25,77 +25,77 @@ package hasc
 import "testing"
 
 func TestGroup1(t *testing.T) {
-	g := newGroup("AAA", "AAA")
+	g := NewGroup("AAA", "AAA")
 
-	o1 := &AnObject{id: "111"}
-	o2 := &AnObject{id: "222"}
+	o1 := &AnItem{id: "111"}
+	o2 := &AnItem{id: "222"}
 
 	g.Add(o1)
 	g.Add(o2)
 
-	if g.State() != OFF {
-		t.Fatalf("should get OFF state, got: %s", g.State())
+	if g.Value() != OFF {
+		t.Fatalf("should get OFF state, got: %s", g.Value())
 	}
 
-	o1.SetState(ON)
+	o1.SetValue(ON)
 	g.refresh()
-	if g.State() != ON {
-		t.Fatalf("should get ON state, got: %s", g.State())
+	if g.Value() != ON {
+		t.Fatalf("should get ON state, got: %s", g.Value())
 	}
 
-	o1.SetState(OFF)
+	o1.SetValue(OFF)
 	g.refresh()
-	if g.State() != OFF {
-		t.Fatalf("should get OFF state, got: %s", g.State())
+	if g.Value() != OFF {
+		t.Fatalf("should get OFF state, got: %s", g.Value())
 	}
 
-	o2.SetState(ON)
+	o2.SetValue(ON)
 	g.refresh()
-	if g.State() != ON {
-		t.Fatalf("should get ON state, got: %s", g.State())
+	if g.Value() != ON {
+		t.Fatalf("should get ON state, got: %s", g.Value())
 	}
 
-	o1.SetState(ON)
+	o1.SetValue(ON)
 	g.refresh()
-	if g.State() != ON {
-		t.Fatalf("should get ON state, got: %s", g.State())
+	if g.Value() != ON {
+		t.Fatalf("should get ON state, got: %s", g.Value())
 	}
 
-	o2.SetState(OFF)
+	o2.SetValue(OFF)
 	g.refresh()
-	if g.State() != ON {
-		t.Fatalf("should get ON state, got: %s", g.State())
+	if g.Value() != ON {
+		t.Fatalf("should get ON state, got: %s", g.Value())
 	}
 }
 
 func TestGroup2(t *testing.T) {
-	g := newGroup("AAA", "AAA")
+	g := NewGroup("AAA", "AAA")
 
-	o1 := &AnObject{id: "111"}
-	o2 := &AnObject{id: "222"}
+	o1 := &AnItem{id: "111"}
+	o2 := &AnItem{id: "222"}
 
 	g.Add(o1)
 	g.Add(o2)
 
-	if g.State() != OFF {
-		t.Fatalf("should get OFF state, got: %s", g.State())
+	if g.Value() != OFF {
+		t.Fatalf("should get OFF state, got: %s", g.Value())
 	}
 
-	o1.SetState(ON)
+	o1.SetValue(ON)
 	g.refresh()
-	if g.State() != ON {
-		t.Fatalf("should get ON state, got: %s", g.State())
+	if g.Value() != ON {
+		t.Fatalf("should get ON state, got: %s", g.Value())
 	}
 
-	o1.SetState("AZE")
+	o1.SetValue("AZE")
 	g.refresh()
-	if g.State() != ON {
-		t.Fatalf("should get ON state, got: %s", g.State())
+	if g.Value() != ON {
+		t.Fatalf("should get ON state, got: %s", g.Value())
 	}
 
-	o1.SetState(ON)
+	o1.SetValue(ON)
 	g.refresh()
-	if g.State() != ON {
-		t.Fatalf("should get ON state, got: %s", g.State())
+	if g.Value() != ON {
+		t.Fatalf("should get ON state, got: %s", g.Value())
 	}
 }

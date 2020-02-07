@@ -31,7 +31,7 @@ import (
 )
 
 type NetMon struct {
-	AnObject
+	AnItem
 	pinger      *fastping.Pinger
 	pinging     atomic.Value
 	lastSuccess time.Time
@@ -39,32 +39,24 @@ type NetMon struct {
 	fail        int
 }
 
-type NetMonItem struct {
-	AnItem
-}
-
 const (
 	pingTimeout = 5 * time.Second
 )
 
-func (n *NetMon) SetState(new string) string {
+func (n *NetMon) SetValue(new string) (string, bool) {
 	switch new {
 	case "on", "ON", "1":
 		new = ON
 	default:
 		new = OFF
 	}
-	old := n.AnObject.SetState(new)
 
-	if new != old {
-		Log.Infof("NetMon set %s to %s", n.id, new)
-	}
-
-	if new != old {
+	old, updated := n.AnItem.SetValue(new)
+	if updated {
 		n.notifyListeners(old, new)
 	}
 
-	return old
+	return old, updated
 }
 
 func (n *NetMon) onRecv(addr *net.IPAddr, rtt time.Duration) {
@@ -73,7 +65,7 @@ func (n *NetMon) onRecv(addr *net.IPAddr, rtt time.Duration) {
 	n.lastSuccess = time.Now()
 	n.fail = 0
 
-	n.SetState(ON)
+	n.SetValue(ON)
 }
 
 func (n *NetMon) onIdle() {
@@ -85,7 +77,7 @@ func (n *NetMon) onIdle() {
 
 	n.fail++
 	if n.fail > n.retry {
-		n.SetState(OFF)
+		n.SetValue(OFF)
 	} else {
 		Log.Infof("NetMon error %s, fails: %d", n.id, n.fail)
 	}
@@ -113,11 +105,7 @@ func (n *NetMon) refresh(refresh time.Duration) {
 	}
 }
 
-func (ni *NetMonItem) MarshalJSON() ([]byte, error) {
-	return marshalJSON(ni)
-}
-
-func newNetMon(id string, label string, address string, refresh time.Duration, retry int) *NetMon {
+func NewNetMon(id string, label string, address string, refresh time.Duration, retry int) *NetMon {
 	p := fastping.NewPinger()
 	ra, err := net.ResolveIPAddr("ip4:icmp", address)
 	if err != nil {
@@ -126,21 +114,14 @@ func newNetMon(id string, label string, address string, refresh time.Duration, r
 	p.AddIPAddr(ra)
 
 	n := &NetMon{
-		AnObject: AnObject{
+		AnItem: AnItem{
 			id:    id,
 			label: label,
-			items: make(map[string]Item),
+			kind:  "state",
+			img:   "netmon",
 		},
 		pinger: p,
 		retry:  retry,
-	}
-
-	n.items[ItemID] = &NetMonItem{
-		AnItem: AnItem{
-			object: n,
-			kind:   "state",
-			img:    "netmon",
-		},
 	}
 
 	p.OnRecv = n.onRecv
@@ -148,13 +129,7 @@ func newNetMon(id string, label string, address string, refresh time.Duration, r
 
 	go n.refresh(refresh)
 
-	return n
-}
+	registry.Add(n)
 
-// RegisterNetMon monitors pinging (ICMP Echo/Reply) the given address. It sends a ping every
-// refresh delay and set the device as OFF after retry.
-func RegisterNetMon(id string, label string, address string, refresh time.Duration, retry int) *NetMon {
-	s := newNetMon(id, label, address, refresh, retry)
-	RegisterObject(s)
-	return s
+	return n
 }

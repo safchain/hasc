@@ -23,56 +23,31 @@
 package hasc
 
 type Button struct {
-	AnObject
-}
-
-type ButtonItem struct {
 	AnItem
 }
 
-func (b *Button) push() string {
-	Log.Infof("Button %s pushed", b.ID())
+func (b *Button) push() (string, bool) {
+	old, updated := b.AnItem.SetValue(ON)
+	b.notifyListeners(old, ON)
 
-	old := b.AnObject.SetState(ON)
-
-	b.notifyListeners("", ON)
-
-	return old
+	return old, updated
 }
 
-func (b *Button) SetState(new string) string {
+func (b *Button) SetValue(new string) (string, bool) {
 	return b.push()
 }
 
-func (bi *ButtonItem) MarshalJSON() ([]byte, error) {
-	return marshalJSON(bi)
-}
-
-func newButton(id string, label string, device interface{}) *Button {
+func NewButton(id string, label string) *Button {
 	s := &Button{
-		AnObject: AnObject{
-			id:     id,
-			label:  label,
-			device: device,
-			items:  make(map[string]Item),
-		},
-	}
-
-	s.items[ItemID] = &ButtonItem{
 		AnItem: AnItem{
-			object: s,
-			kind:   "button",
-			img:    "switch",
+			id:    id,
+			label: label,
+			kind:  "button",
+			img:   "switch",
 		},
 	}
 
-	return s
-}
+	registry.Add(s)
 
-// RegisterButton registers a new button using the given ID, label and device
-// The object will send ON state to the bus.
-func RegisterButton(id string, label string, device interface{}) *Button {
-	s := newButton(id, label, device)
-	RegisterObject(s)
 	return s
 }

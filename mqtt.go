@@ -29,78 +29,46 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
-// MQTT Object
 type MQTT struct {
-	AnObject
+	AnItem
 	pubTopic string
 	subTopic string
 	conn     *MQTTConn
 }
 
-type MQTTItem struct {
-	AnItem
-}
-
 func (m *MQTT) onMessage(client mqtt.Client, msg mqtt.Message) {
 	new := string(msg.Payload())
-	old := m.AnObject.SetState(new)
-
-	Log.Infof("MQTT %s changed to %s", m.ID(), new)
-
+	old, _ := m.AnItem.SetValue(new)
 	m.notifyListeners(old, new)
 }
 
-// SetState changes the internal state of the Object. The new state will be
-// published.
-func (m *MQTT) SetState(new string) string {
-	Log.Infof("MQTT %s set to %s", m.ID(), new)
-
-	old := m.AnObject.SetState(new)
-
+func (m *MQTT) SetValue(new string) (string, bool) {
+	old, updated := m.AnItem.SetValue(new)
 	m.conn.Publish(m.ID(), m.pubTopic, new)
-
-	return old
+	return old, updated
 }
 
-func (mi *MQTTItem) MarshalJSON() ([]byte, error) {
-	return marshalJSON(mi)
-}
-
-// NewMQTT creates a new MQTT Object, publishing and subscribing to the given broker/topic
-func newMQTT(id string, label string, conn *MQTTConn, pubTopic string, subTopic string) *MQTT {
+func NewMQTT(id string, label string, conn *MQTTConn, pubTopic string, subTopic string) *MQTT {
 	if pubTopic == subTopic {
 		fmt.Println("pub topic and sub topic have to be different")
 		os.Exit(1)
 	}
 
 	m := &MQTT{
-		AnObject: AnObject{
-			id:    id,
-			label: label,
-			items: make(map[string]Item),
-		},
 		conn:     conn,
 		pubTopic: pubTopic,
 		subTopic: subTopic,
-	}
-
-	m.items[ItemID] = &MQTTItem{
 		AnItem: AnItem{
-			object: m,
-			kind:   "value",
-			img:    "chart",
+			id:    id,
+			label: label,
+			kind:  "value",
+			img:   "chart",
 		},
 	}
 
 	conn.Subscribe(subTopic, m)
 
-	return m
-}
+	registry.Add(m)
 
-// RegisterMQTT registers a MQTT broker. It will publish its state changes to the pubTopic and
-// listens for state change on the subTopic.
-func RegisterMQTT(id string, label string, conn *MQTTConn, pubTopic string, subTopic string) *MQTT {
-	m := newMQTT(id, label, conn, pubTopic, subTopic)
-	RegisterObject(m)
 	return m
 }

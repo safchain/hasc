@@ -28,30 +28,30 @@ import (
 	"golang.org/x/sync/syncmap"
 )
 
-type stateListener struct {
+type valueListener struct {
 	sync.RWMutex
-	callback func(object Object, old string, new string)
+	callback func(item Item, old string, new string)
 	eventMap syncmap.Map
 }
 
-func (s *stateListener) OnStateChange(object Object, old string, new string) {
-	if _, ok := s.eventMap.Load(object.ID()); ok {
+func (s *valueListener) OnValueChange(item Item, old string, new string) {
+	if _, ok := s.eventMap.Load(item.ID()); ok {
 		return
 	}
 
-	s.eventMap.Store(object.ID(), true)
+	s.eventMap.Store(item.ID(), true)
 	defer func() {
-		s.eventMap.Delete(object.ID())
+		s.eventMap.Delete(item.ID())
 	}()
 
 	s.RLock()
 	if s.callback != nil {
-		s.callback(object, old, new)
+		s.callback(item, old, new)
 	}
 	s.RUnlock()
 }
 
-func (s *stateListener) setCallbackFnc(cb func(object Object, old string, new string)) {
+func (s *valueListener) setCallbackFnc(cb func(item Item, old string, new string)) {
 	s.Lock()
 	s.callback = cb
 	s.Unlock()

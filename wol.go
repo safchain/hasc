@@ -27,7 +27,7 @@ type WOL struct {
 	intf string
 }
 
-func (w *WOL) OnStateChange(object Object, old string, new string) {
+func (w *WOL) OnValueChange(item Item, old string, new string) {
 	switch new {
 	case "on", "ON", "1":
 		// TODO : fix up wol
@@ -38,8 +38,6 @@ func (w *WOL) OnStateChange(object Object, old string, new string) {
 	}
 }
 
-// NewWOL creates a new Wake-On-Lan for the given MAC and using
-// the given interface name to send the request.
 func NewWOL(mac string, intf string) *WOL {
 	Log.Infof("New WOL %s %s", mac, intf)
 

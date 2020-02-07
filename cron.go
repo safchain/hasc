@@ -32,28 +32,28 @@ type Cron struct {
 }
 
 type CronOpts struct {
-	State string
+	Value string
 }
 
 // NewCronTrigger creates a new Unix like cron job with the given cron expression (man 5 crontab)
 // It will change the state of the given object. By default the object state will be set
 // to ON. The state used can be changed using the CronOpts parameter.
-func NewCronTrigger(schedule string, obj Object, opts ...CronOpts) *Cron {
+func NewCronTrigger(schedule string, item Item, opts ...CronOpts) *Cron {
 	c := cron.New()
 
-	state := ON
-	if len(opts) > 0 && opts[0].State != "" {
-		state = opts[0].State
+	value := ON
+	if len(opts) > 0 && opts[0].Value != "" {
+		value = opts[0].Value
 	}
 
 	err := c.AddFunc(schedule, func() {
-		obj.SetState(state)
+		item.SetValue(value)
 	})
 	if err != nil {
 		log.Fatalf("Cron unable to parse schedule definition: %s", err)
 	}
 
-	Log.Infof("New Cron %s for %s", schedule, obj.ID())
+	Log.Infof("New Cron %s for %s", schedule, item.ID())
 
 	c.Start()
 

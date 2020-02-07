@@ -23,152 +23,78 @@
 package hasc
 
 import (
-	"encoding/json"
 	"fmt"
-	"strings"
+	"math"
 	"time"
 
-	"github.com/shirou/gopsutil/disk"
 	"github.com/shirou/gopsutil/host"
 	"github.com/shirou/gopsutil/load"
 	"github.com/shirou/gopsutil/mem"
 )
 
-type diskValues struct {
-	Name       string
-	ReadBytes  uint64
-	WriteBytes uint64
-}
-
-type sysMonValues struct {
-	MemUsedPercent float64
-	CPUAvg1        float64
-	CPUAvg5        float64
-	CPUAvg15       float64
-	Uptime         uint64
-	Disks          map[string]diskValues
-}
-
 type SysMon struct {
-	AnObject
-	values sysMonValues
+	memPercent AnItem
+	cpuAvg1    AnItem
+	cpuAvg5    AnItem
+	cpuAvg15   AnItem
+	uptime     AnItem
 }
 
-type SysMonUint64Item struct {
-	AnItem
-	id    string
-	label string
-	value uint64
-	unit  string
-}
+func secondsToHuman(input uint64) (result string) {
+	years := int(math.Floor(float64(input) / 60 / 60 / 24 / 7 / 30 / 12))
+	seconds := input % (60 * 60 * 24 * 7 * 30 * 12)
+	months := int(math.Floor(float64(seconds) / 60 / 60 / 24 / 7 / 30))
+	seconds = input % (60 * 60 * 24 * 7)
+	days := int(math.Floor(float64(seconds) / 60 / 60 / 24))
+	seconds = input % (60 * 60 * 24)
+	hours := int(math.Floor(float64(seconds) / 60 / 60))
+	seconds = input % (60 * 60)
+	minutes := int(math.Floor(float64(seconds) / 60))
+	seconds = input % 60
 
-type SysMonFloat64Item struct {
-	AnItem
-	id    string
-	label string
-	value float64
-	unit  string
-}
-
-const (
-	MemUsedPercentID = "MEM_USED_PERCENT"
-	CPUAvg1ID        = "CPU_AVG1"
-	CPUAvg5ID        = "CPU_AVG5"
-	CPUAvg15ID       = "CPU_AVG15"
-)
-
-func (s *SysMon) SetState(new string) string {
-	Log.Infof("SysMon %s set to %s", s.ID(), new)
-
-	old := s.AnObject.SetState(new)
-
-	if new != old {
-		s.notifyListeners(old, new)
+	if years > 0 {
+		result = fmt.Sprintf("%dY %dM %dd %dh %dm %ds", years, months, days, hours, minutes, seconds)
+	} else if months > 0 {
+		result = fmt.Sprintf("%dM %dd %dh %dm %ds", months, days, hours, minutes, seconds)
+	} else if days > 0 {
+		result = fmt.Sprintf("%dd %dh %dm %ds", days, hours, minutes, seconds)
+	} else if hours > 0 {
+		result = fmt.Sprintf("%dh %dm %ds", hours, minutes, seconds)
+	} else if minutes > 0 {
+		result = fmt.Sprintf("%dm %ds", minutes, seconds)
+	} else {
+		result = fmt.Sprintf("%ds", seconds)
 	}
 
-	return old
+	return
 }
 
 func (s *SysMon) refreshFnc() {
-	Log.Infof("SysMon %s refresh", s.ID())
+	Log.Infof("SysMon refresh")
+
 	v, err := mem.VirtualMemory()
 	if err != nil {
 		Log.Errorf("SysMon memory refresh %s", err)
 		return
 	}
-	s.values.MemUsedPercent = v.UsedPercent
-	s.items[MemUsedPercentID].(*SysMonFloat64Item).value = v.UsedPercent
+
+	s.memPercent.SetValue(fmt.Sprintf("%.2f", v.UsedPercent))
 
 	l, err := load.Avg()
 	if err != nil {
 		Log.Errorf("SysMon cpu avg refresh %s", err)
 		return
 	}
-	s.values.CPUAvg1 = l.Load1
-	s.items[CPUAvg1ID].(*SysMonFloat64Item).value = l.Load1
-	s.values.CPUAvg5 = l.Load5
-	s.items[CPUAvg5ID].(*SysMonFloat64Item).value = l.Load5
-	s.values.CPUAvg15 = l.Load15
-	s.items[CPUAvg15ID].(*SysMonFloat64Item).value = l.Load15
+	s.cpuAvg1.SetValue(fmt.Sprintf("%.2f", l.Load1))
+	s.cpuAvg5.SetValue(fmt.Sprintf("%.2f", l.Load5))
+	s.cpuAvg15.SetValue(fmt.Sprintf("%.2f", l.Load15))
 
 	u, err := host.Uptime()
 	if err != nil {
 		Log.Errorf("SysMon uptime refresh %s", err)
 		return
 	}
-	s.values.Uptime = u
-
-	d, err := disk.IOCounters()
-	if err != nil {
-		Log.Errorf("SysMon uptime refresh %s", err)
-		return
-	}
-
-	index := 99
-	for name, values := range d {
-		s.values.Disks[name] = diskValues{
-			Name:       name,
-			ReadBytes:  values.ReadBytes,
-			WriteBytes: values.WriteBytes,
-		}
-
-		id := fmt.Sprintf("DISK_%s_READ_BYTES", strings.ToUpper(name))
-		if item, ok := s.items[id]; ok {
-			item.(*SysMonUint64Item).value = values.ReadBytes
-		} else {
-			s.items[id] = &SysMonUint64Item{
-				AnItem: AnItem{
-					object: s,
-					img:    "hdd",
-					index:  index,
-				},
-				id:    id,
-				label: fmt.Sprintf("%s read", name),
-				value: values.ReadBytes,
-			}
-			index++
-		}
-
-		id = fmt.Sprintf("DISK_%s_WRITE_BYTES", strings.ToUpper(name))
-		if item, ok := s.items[id]; ok {
-			item.(*SysMonUint64Item).value = values.WriteBytes
-		} else {
-			s.items[id] = &SysMonUint64Item{
-				AnItem: AnItem{
-					object: s,
-					img:    "hdd",
-					index:  index,
-				},
-				id:    id,
-				label: fmt.Sprintf("%s write", name),
-				value: values.WriteBytes,
-			}
-			index++
-		}
-	}
-
-	data, _ := json.Marshal(s.values)
-	s.SetState(string(data))
+	s.uptime.SetValue(secondsToHuman(u))
 }
 
 func (s *SysMon) refresh(refresh time.Duration) {
@@ -181,145 +107,61 @@ func (s *SysMon) refresh(refresh time.Duration) {
 }
 
 func (s *SysMon) MemUsedPercentItem() Item {
-	return s.items[MemUsedPercentID]
+	return &s.memPercent
 }
 
 func (s *SysMon) CPUAvg1Item() Item {
-	return s.items[CPUAvg1ID]
+	return &s.cpuAvg1
 }
 
 func (s *SysMon) CPUAvg5Item() Item {
-	return s.items[CPUAvg5ID]
+	return &s.cpuAvg5
 }
 
 func (s *SysMon) CPUAvg15Item() Item {
-	return s.items[CPUAvg15ID]
+	return &s.cpuAvg15
 }
 
-func (si *SysMonFloat64Item) ID() string {
-	return si.id
+func (s *SysMon) UptimeItem() Item {
+	return &s.uptime
 }
 
-func (si *SysMonFloat64Item) Value() string {
-	si.object.RLock()
-	defer si.object.RUnlock()
-
-	return fmt.Sprintf("%.2f", si.value)
-}
-
-func (si *SysMonFloat64Item) Label() string {
-	return si.label
-}
-
-func (si *SysMonFloat64Item) MarshalJSON() ([]byte, error) {
-	return marshalJSON(si)
-}
-
-func (s *SysMon) DiskReadItem(name string) Item {
-	id := fmt.Sprintf("DISK_%s_READ_BYTES", strings.ToUpper(name))
-	if item, ok := s.items[id]; ok {
-		return item
-	}
-	return &SysMonUint64Item{
-		AnItem: AnItem{
-			object: s,
-			kind:   "value",
-			img:    "hdd",
-			index:  200,
-		},
-		id:    id,
-		label: fmt.Sprintf("%s not found", name),
-	}
-}
-
-func (s *SysMon) DiskWriteItem(name string) Item {
-	id := fmt.Sprintf("DISK_%s_WRITE_BYTES", strings.ToUpper(name))
-	if item, ok := s.items[id]; ok {
-		return item
-	}
-	return &SysMonUint64Item{
-		AnItem: AnItem{
-			object: s,
-			img:    "hdd",
-			index:  200,
-		},
-		id:    id,
-		label: fmt.Sprintf("%s not found", name),
-	}
-}
-
-func (si *SysMonUint64Item) ID() string {
-	return si.id
-}
-
-func (si *SysMonUint64Item) Value() string {
-	si.object.RLock()
-	defer si.object.RUnlock()
-
-	return fmt.Sprintf("%d", si.value)
-}
-
-func (si *SysMonUint64Item) Label() string {
-	return si.label
-}
-
-func (si *SysMonUint64Item) MarshalJSON() ([]byte, error) {
-	return marshalJSON(si)
-}
-
-func newSysMon(id string, label string, refresh time.Duration) *SysMon {
+func NewSysMon(id string, label string, refresh time.Duration) *SysMon {
 	s := &SysMon{
-		AnObject: AnObject{
-			id:    id,
-			label: label,
-			items: make(map[string]Item),
+		memPercent: AnItem{
+			id:    id + "_MEM",
+			label: "Mem. used",
+			kind:  "value",
+			img:   "mem",
+			unit:  "%",
 		},
-	}
-	s.values.Disks = make(map[string]diskValues)
-
-	s.items[MemUsedPercentID] = &SysMonFloat64Item{
-		AnItem: AnItem{
-			object: s,
-			kind:   "value",
-			img:    "mem",
-			index:  0,
+		cpuAvg1: AnItem{
+			id:    id + "_AVG1",
+			label: "CPU Avg1",
+			kind:  "value",
+			img:   "cpu",
+			unit:  "%",
 		},
-		id:    MemUsedPercentID,
-		label: "Mem. used",
-		unit:  "%",
-	}
-
-	s.items[CPUAvg1ID] = &SysMonFloat64Item{
-		AnItem: AnItem{
-			object: s,
-			kind:   "value",
-			img:    "cpu",
-			index:  1,
+		cpuAvg5: AnItem{
+			id:    id + "_AVG5",
+			label: "CPU Avg5",
+			kind:  "value",
+			img:   "cpu",
+			unit:  "%",
 		},
-		id:    CPUAvg1ID,
-		label: "CPU Avg1",
-	}
-
-	s.items[CPUAvg5ID] = &SysMonFloat64Item{
-		AnItem: AnItem{
-			object: s,
-			kind:   "value",
-			img:    "cpu",
-			index:  2,
+		cpuAvg15: AnItem{
+			id:    id + "_AVG15",
+			label: "CPU Avg15",
+			kind:  "value",
+			img:   "cpu",
+			unit:  "%",
 		},
-		id:    CPUAvg5ID,
-		label: "CPU Avg5",
-	}
-
-	s.items[CPUAvg15ID] = &SysMonFloat64Item{
-		AnItem: AnItem{
-			object: s,
-			kind:   "value",
-			img:    "cpu",
-			index:  3,
+		uptime: AnItem{
+			id:    id + "_UPTIME",
+			label: "Uptime",
+			kind:  "value",
+			img:   "clock",
 		},
-		id:    CPUAvg15ID,
-		label: "CPU Avg15",
 	}
 
 	// first init to retrieve all the items
@@ -327,12 +169,11 @@ func newSysMon(id string, label string, refresh time.Duration) *SysMon {
 
 	go s.refresh(refresh)
 
-	return s
-}
+	registry.Add(&s.memPercent)
+	registry.Add(&s.cpuAvg1)
+	registry.Add(&s.cpuAvg5)
+	registry.Add(&s.cpuAvg15)
+	registry.Add(&s.uptime)
 
-// RegisterSysMon registers a system monitor object. It monitor CPU, Memory and Disk usage.
-func RegisterSysMon(id string, label string, refresh time.Duration) *SysMon {
-	s := newSysMon(id, label, refresh)
-	RegisterObject(s)
 	return s
 }

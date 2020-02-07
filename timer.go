@@ -29,8 +29,8 @@ import (
 )
 
 type Timer struct {
-	AnObject
-	obj        Object
+	AnItem
+	item       Item
 	opts       TimerOpts
 	lastUpdate time.Time
 	active     atomic.Value
@@ -48,23 +48,23 @@ type TimerItem struct {
 	AnItem
 }
 
-func (r *Timer) on() string {
+func (r *Timer) on() (string, bool) {
 	Log.Infof("Timer %s set to ON", r.ID())
 
-	old := r.AnObject.SetState(ON)
+	old, _ := r.AnItem.SetValue(ON)
+	r.notifyListeners(old, ON)
+
+	if r.item.Value() == ON {
+		r.item.SetValue(ON)
+	}
 
 	r.Lock()
 	r.lastUpdate = time.Now()
 	r.Unlock()
 
 	if old != ON {
-		r.notifyListeners(old, ON)
-
 		if r.active.Load() == true {
-			if r.obj.State() != r.opts.OnState {
-				r.obj.SetState(r.opts.OnState)
-			}
-			return old
+			return old, true
 		}
 
 		go func() {
@@ -83,7 +83,9 @@ func (r *Timer) on() string {
 			for r.active.Load() == true {
 				select {
 				case <-onAfter:
-					r.obj.SetState(r.opts.OnState)
+					if r.item != nil {
+						r.item.SetValue(r.opts.OnState)
+					}
 					on = true
 				case now := <-tick.C:
 					r.RLock()
@@ -92,8 +94,8 @@ func (r *Timer) on() string {
 					if tm {
 						if on {
 							// reset it as on as another timer could act on the same switch
-							if r.obj.State() != r.opts.OnState {
-								r.obj.SetState(r.opts.OnState)
+							if r.item.Value() != r.opts.OnState {
+								r.item.SetValue(r.opts.OnState)
 							}
 
 							r.RLock()
@@ -104,10 +106,8 @@ func (r *Timer) on() string {
 							}
 
 							remain := fmt.Sprintf("%d", int(diff.Seconds()))
-							r.Lock()
-							old := r.state
-							r.state = remain
-							r.Unlock()
+
+							old, _ := r.AnItem.SetValue(remain)
 
 							r.notifyListeners(old, remain)
 						} else {
@@ -119,49 +119,46 @@ func (r *Timer) on() string {
 		}()
 	}
 
-	return old
+	return old, false
 }
 
-func (r *Timer) off() string {
+func (r *Timer) off() (string, bool) {
 	Log.Infof("Timer %s set to OFF", r.ID())
 
-	old := r.AnObject.SetState(OFF)
+	old, updated := r.AnItem.SetValue(OFF)
+	r.notifyListeners(old, OFF)
 
-	if old != OFF {
-		r.notifyListeners(old, OFF)
+	if r.item != nil {
+		r.item.SetValue(r.opts.OffState)
 	}
 
-	r.obj.SetState(r.opts.OffState)
-
-	return old
+	return old, updated
 }
 
-func (r *Timer) SetState(new string) string {
+func (r *Timer) SetValue(new string) (string, bool) {
 	var old string
+	var updated bool
+
 	switch new {
 	case "on", "ON", "1":
-		old = r.on()
+		old, updated = r.on()
 	default:
-		old = r.off()
+		old, updated = r.off()
 	}
 
-	return old
+	return old, updated
 }
 
-func (ri *TimerItem) MarshalJSON() ([]byte, error) {
-	return marshalJSON(ri)
-}
-
-func newTimer(id string, label string, device interface{}, obj Object, opts ...TimerOpts) *Timer {
+func NewTimer(id string, label string, item Item, opts ...TimerOpts) *Timer {
 	r := &Timer{
-		AnObject: AnObject{
-			id:     id,
-			label:  label,
-			device: device,
-			items:  make(map[string]Item),
-			state:  OFF,
+		AnItem: AnItem{
+			id:    id,
+			label: label,
+			value: OFF,
+			kind:  "timer",
+			img:   "timer",
 		},
-		obj: obj,
+		item: item,
 	}
 	if len(opts) > 0 {
 		r.opts = opts[0]
@@ -177,22 +174,7 @@ func newTimer(id string, label string, device interface{}, obj Object, opts ...T
 		r.opts.Timeout = time.Second
 	}
 
-	r.items[ItemID] = &TimerItem{
-		AnItem: AnItem{
-			object: r,
-			kind:   "timer",
-			img:    "switch",
-		},
-	}
+	registry.Add(r)
 
-	return r
-}
-
-// RegisterTimer triggers state change on the given object. It can act as a timer meaning
-// it can set the object state to ON after a certain among of time and can delay the OFF
-// state.
-func RegisterTimer(id string, label string, device interface{}, obj Object, opts ...TimerOpts) *Timer {
-	r := newTimer(id, label, device, obj, opts...)
-	RegisterObject(r)
 	return r
 }

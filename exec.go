@@ -30,7 +30,7 @@ import (
 type Exec struct {
 	cmdOn  []string
 	cmdOff []string
-	obj    Object
+	item   Item
 }
 
 func (e *Exec) OnStateChange(id string, old string, new string) {
@@ -54,15 +54,15 @@ func (e *Exec) OnStateChange(id string, old string, new string) {
 		return
 	}
 
-	if e.obj != nil {
-		e.obj.SetState(string(output))
+	if e.item != nil {
+		e.item.SetValue(string(output))
 	}
 }
 
 // NewExec returns a new Exec object. The given cmdOn parameter will be used while the
 // object state will be set to ON and the cmdoff for the OFF state of the object.
 // The extra obj parameter can be used to receive the output of the execution.
-func NewExec(cmdOn []string, cmdOff []string, obj ...Object) *Exec {
+func NewExec(cmdOn []string, cmdOff []string, items ...Item) *Exec {
 	Log.Infof("New Exec on: %s, off: %s", cmdOn, cmdOff)
 
 	e := &Exec{
@@ -70,8 +70,8 @@ func NewExec(cmdOn []string, cmdOff []string, obj ...Object) *Exec {
 		cmdOff: cmdOff,
 	}
 
-	if len(obj) > 0 {
-		e.obj = obj[0]
+	if len(items) > 0 {
+		e.item = items[0]
 	}
 
 	return e

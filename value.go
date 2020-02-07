@@ -23,51 +23,33 @@
 package hasc
 
 type Value struct {
-	AnObject
-}
-
-type ValueItem struct {
 	AnItem
 }
 
-func (v *Value) SetState(new string) string {
-	Log.Infof("Value %s set to %s", v.ID(), new)
-
-	old := v.AnObject.SetState(new)
-
+func (v *Value) SetValue(new string) (string, bool) {
+	old, updated := v.AnItem.SetValue(new)
 	v.notifyListeners(old, new)
 
-	return old
+	return old, updated
 }
 
-func (vi *ValueItem) MarshalJSON() ([]byte, error) {
-	return marshalJSON(vi)
-}
+func NewValue(id string, label string, units ...string) *Value {
+	var unit string
+	if len(units) > 0 {
+		unit = units[0]
+	}
 
-func newValue(id string, label string, unit string) *Value {
 	v := &Value{
-		AnObject: AnObject{
+		AnItem: AnItem{
 			id:    id,
 			label: label,
-			items: make(map[string]Item),
+			kind:  "value",
+			img:   "chart",
+			unit:  unit,
 		},
 	}
 
-	v.items[ItemID] = &ValueItem{
-		AnItem: AnItem{
-			object: v,
-			kind:   "value",
-			img:    "chart",
-			unit:   unit,
-		},
-	}
+	registry.Add(v)
 
-	return v
-}
-
-// RegisterValue registers a simple value object.
-func RegisterValue(id string, label string, unit string) *Value {
-	v := newValue(id, label, unit)
-	RegisterObject(v)
 	return v
 }
