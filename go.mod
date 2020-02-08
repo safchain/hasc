@@ -18,7 +18,7 @@ require (
 	github.com/influxdata/influxdb v1.7.9
 	github.com/op/go-logging v0.0.0-20160315200505-970db520ece7
 	github.com/robfig/cron v1.2.0
-	github.com/sabhiram/go-wol v0.0.0-20190608230442-1f746af28fd4
+	github.com/sabhiram/go-wol v0.0.0-20180416182156-b83cc3a6667d
 	github.com/satori/go.uuid v1.2.0
 	github.com/shirou/gopsutil v2.19.11+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect

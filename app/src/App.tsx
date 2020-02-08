@@ -16,7 +16,7 @@ import { withSnackbar, WithSnackbarProps, VariantType } from 'notistack';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faTemperatureHigh, faChartBar, faTint, faFan, faWindowMaximize, faFire, faHdd } from '@fortawesome/free-solid-svg-icons';
 import { faMemory, faLaptop, faSlidersH, faBug, faLayerGroup, faMicrochip, faBolt, faMoneyBillAlt } from '@fortawesome/free-solid-svg-icons';
-import { faBurn, faPlug, faShower, faClock, faStopwatch } from '@fortawesome/free-solid-svg-icons';
+import { faBurn, faPlug, faShower, faClock, faStopwatch, faToggleOn } from '@fortawesome/free-solid-svg-icons';
 import { faKey } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Fab from '@material-ui/core/Fab';
@@ -52,6 +52,7 @@ library.add(faShower, faKey);
 library.add(faPlug, faKey);
 library.add(faClock, faKey);
 library.add(faStopwatch, faKey);
+library.add(faToggleOn);
 
 interface Props extends WithSnackbarProps { }
 
@@ -128,6 +129,8 @@ const RenderIcon: React.FC<IconRenderProps> = (props) => {
       return (<FontAwesomeIcon icon="clock" />);
     case "timer":
       return (<FontAwesomeIcon icon="stopwatch" />);
+    case "switch":
+      return (<FontAwesomeIcon icon="toggle-on" />);
   }
 
   return (

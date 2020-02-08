@@ -22,6 +22,10 @@
 
 package hasc
 
+import (
+	"github.com/sabhiram/go-wol"
+)
+
 type WOL struct {
 	mac  string
 	intf string
@@ -30,11 +34,9 @@ type WOL struct {
 func (w *WOL) OnValueChange(item Item, old string, new string) {
 	switch new {
 	case "on", "ON", "1":
-		// TODO : fix up wol
-
-		/*if err := wol.SendMagicPacket(w.mac, "255.255.255.255:9", w.intf); err != nil {
+		if err := wol.SendMagicPacket(w.mac, "255.255.255.255:9", w.intf); err != nil {
 			Log.Errorf("WOL unable to send magic packet: %s", err)
-		}*/
+		}
 	}
 }
 

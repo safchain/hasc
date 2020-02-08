@@ -95,7 +95,7 @@ func (s *SmartBoiler) onMessage(client mqtt.Client, msg mqtt.Message) {
 			si.notifyListeners(old, si.value)
 
 			si = s.sessionFlowPrice
-			priceFloat := newFloat * 0.3 // 0.3 € / liter
+			priceFloat := newFloat * 3 / 1000 // 3 € / m3
 
 			old, _ = si.SetValue(fmt.Sprintf("%.2f", priceFloat))
 			si.notifyListeners(old, si.value)
@@ -110,6 +110,10 @@ func (s *SmartBoiler) onMessage(client mqtt.Client, msg mqtt.Message) {
 		si := s.current
 		amp, _ := strconv.ParseFloat(value, 64)
 		watt := amp * 220
+		if watt < 500 {
+			watt = 0
+		}
+
 		old, _ := s.current.SetValue(fmt.Sprintf("%.2f", watt))
 		si.notifyListeners(old, value)
 	case "smab-br/relay-state":
