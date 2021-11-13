@@ -30,22 +30,28 @@ import (
 )
 
 type OWM struct {
+	temperature AnItem
+	humidity    AnItem
 	cwd         *owm.CurrentWeatherData
 	lat         float64
 	lon         float64
-	temperature AnItem
-	humidity    AnItem
 }
 
 func (o *OWM) refreshFnc() {
 	Log.Infof("Weather refresh: %f, %f", o.lat, o.lon)
 	o.cwd.CurrentByCoordinates(&owm.Coordinates{Latitude: o.lat, Longitude: o.lon})
 
-	o.temperature.SetValue(fmt.Sprintf("%.2f", o.cwd.Main.Temp))
-	o.humidity.SetValue(fmt.Sprintf("%d", o.cwd.Main.Humidity))
+	old, _ := o.temperature.SetValue(fmt.Sprintf("%.2f", o.cwd.Main.Temp))
+	o.temperature.notifyListeners(old, o.temperature.value)
+
+	old, _ = o.humidity.SetValue(fmt.Sprintf("%d", o.cwd.Main.Humidity))
+	o.humidity.notifyListeners(old, o.humidity.value)
 }
 
 func (o *OWM) refresh(refresh time.Duration) {
+	// sleep a bit to make the rest of the code ready to accept update
+	time.Sleep(5 * time.Second)
+
 	o.refreshFnc()
 
 	ticker := time.NewTicker(refresh)

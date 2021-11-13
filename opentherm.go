@@ -22,7 +22,14 @@
 
 package hasc
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+	"sync"
+
+	mqtt "github.com/eclipse/paho.mqtt.golang"
+)
 
 type argType int
 
@@ -76,6 +83,8 @@ type Src rune
 const (
 	B Src = 'B'
 	T Src = 'T'
+	A Src = 'A'
+	R Src = 'R'
 )
 
 type Message struct {
@@ -137,6 +146,7 @@ var messageDefs = map[int]messageDef{
 	33:  {id: 33, arg1: f8, arg2: ns, desc: "Exhaust temperature"},
 	34:  {id: 34, arg1: f8, arg2: ns, desc: "Boiler heat exchanger temperature"},
 	35:  {id: 35, arg1: u8, arg2: u8, desc: "Boiler fan speed and setpoint"},
+	37:  {id: 37, arg1: f8, arg2: ns, desc: "Room temperature CH2"},
 	77:  {id: 77, arg1: nu, arg2: u8, desc: "Relative ventilation"},
 	78:  {id: 78, arg1: u8, arg2: u8, desc: "Relative humidity exhaust air"},
 	79:  {id: 79, arg1: u16, arg2: ns, desc: "CO2 level exhaust air"},
@@ -198,8 +208,12 @@ func (s Src) String() string {
 	switch s {
 	case B:
 		return "Boiler"
+	case R:
+		return "Request"
 	case T:
 		return "Thermostat"
+	case A:
+		return "Answer"
 	}
 	return string(s)
 }
@@ -226,22 +240,22 @@ func (m MessageType) String() string {
 	return "Unknown"
 }
 
-func (m *Message) IsMasterCH() bool          { return m.Values[0].(int)&int(MasterCH) > 0 }
-func (m *Message) IsMasterDHW() bool         { return m.Values[0].(int)&int(MasterDHW) > 0 }
-func (m *Message) IsMasterCooling() bool     { return m.Values[0].(int)&int(MasterCooling) > 0 }
-func (m *Message) IsMasterOTC() bool         { return m.Values[0].(int)&int(MasterOTC) > 0 }
-func (m *Message) IsMasterCH2() bool         { return m.Values[0].(int)&int(MasterCH2) > 0 }
-func (m *Message) IsMasterSummer() bool      { return m.Values[0].(int)&int(MasterSummer) > 0 }
-func (m *Message) IsMasterDHWBlocking() bool { return m.Values[0].(int)&int(MasterDHWBlocking) > 0 }
+func (m *Message) IsMasterCH() bool          { return m.Values[0].(int64)&int64(MasterCH) > 0 }
+func (m *Message) IsMasterDHW() bool         { return m.Values[0].(int64)&int64(MasterDHW) > 0 }
+func (m *Message) IsMasterCooling() bool     { return m.Values[0].(int64)&int64(MasterCooling) > 0 }
+func (m *Message) IsMasterOTC() bool         { return m.Values[0].(int64)&int64(MasterOTC) > 0 }
+func (m *Message) IsMasterCH2() bool         { return m.Values[0].(int64)&int64(MasterCH2) > 0 }
+func (m *Message) IsMasterSummer() bool      { return m.Values[0].(int64)&int64(MasterSummer) > 0 }
+func (m *Message) IsMasterDHWBlocking() bool { return m.Values[0].(int64)&int64(MasterDHWBlocking) > 0 }
 
-func (m *Message) IsSlaveFault() bool       { return m.Values[1].(int)&int(SlaveFault) > 0 }
-func (m *Message) IsSlaveCH() bool          { return m.Values[1].(int)&int(SlaveCH) > 0 }
-func (m *Message) IsSlaveDHW() bool         { return m.Values[1].(int)&int(SlaveDHW) > 0 }
-func (m *Message) IsSlaveFlame() bool       { return m.Values[1].(int)&int(SlaveFlame) > 0 }
-func (m *Message) IsSlaveCooling() bool     { return m.Values[1].(int)&int(SlaveCooling) > 0 }
-func (m *Message) IsSlaveCH2() bool         { return m.Values[1].(int)&int(SlaveCH2) > 0 }
-func (m *Message) IsSlaveDiagnostic() bool  { return m.Values[1].(int)&int(SlaveDiagnostic) > 0 }
-func (m *Message) IsSlaveElectricity() bool { return m.Values[1].(int)&int(SlaveElectricity) > 0 }
+func (m *Message) IsSlaveFault() bool       { return m.Values[1].(int64)&int64(SlaveFault) > 0 }
+func (m *Message) IsSlaveCH() bool          { return m.Values[1].(int64)&int64(SlaveCH) > 0 }
+func (m *Message) IsSlaveDHW() bool         { return m.Values[1].(int64)&int64(SlaveDHW) > 0 }
+func (m *Message) IsSlaveFlame() bool       { return m.Values[1].(int64)&int64(SlaveFlame) > 0 }
+func (m *Message) IsSlaveCooling() bool     { return m.Values[1].(int64)&int64(SlaveCooling) > 0 }
+func (m *Message) IsSlaveCH2() bool         { return m.Values[1].(int64)&int64(SlaveCH2) > 0 }
+func (m *Message) IsSlaveDiagnostic() bool  { return m.Values[1].(int64)&int64(SlaveDiagnostic) > 0 }
+func (m *Message) IsSlaveElectricity() bool { return m.Values[1].(int64)&int64(SlaveElectricity) > 0 }
 
 func (m *Message) ThermostatSetPoint(value float64) {
 	m.Src = T
@@ -289,10 +303,14 @@ func (m *Message) Decode(msg string) error {
 	var id int
 	var data int
 
+	if len(msg) != 9 {
+		return fmt.Errorf("wrong message format: %s", msg)
+	}
+
 	fmt.Sscanf(msg, "%1c%1X0%2X%4X", &src, &kind, &id, &data)
 
 	switch Src(src) {
-	case B, T:
+	case B, T, A, R:
 	default:
 		return fmt.Errorf("src not supported: %c", src)
 	}
@@ -309,26 +327,330 @@ func (m *Message) Decode(msg string) error {
 	m.Type = MessageType(kind)
 	m.Desc = md.desc
 
-	var values []int
+	var values []int64
 	if md.arg2 == ns {
-		values = []int{data}
+		values = []int64{int64(data)}
 	} else {
-		values = []int{data >> 8, data & 0xff}
+		values = []int64{int64(data) >> 8, int64(data) & 0xff}
 	}
+
+	arg := md.arg1
 
 	m.Values = m.Values[:0]
 	for _, value := range values {
-		switch md.arg1 {
+		switch arg {
 		case u8, s8, u16, flag8:
-			m.Values = append(m.Values, value)
+			m.Values = append(m.Values, int64(value))
 		case f8:
-			f := float64(value >> 8)
+			f := float64(int8(value >> 8))
 			f += float64(float64(value&0xff) / 255)
 			f = float64(int64(f*100+0.5)) / 100
 
 			m.Values = append(m.Values, f)
 		}
+		arg = md.arg2
 	}
 
 	return nil
+}
+
+type oitemKey struct {
+	src  Src
+	id   int
+	kind MessageType
+}
+
+type openthermItem struct {
+	item Item
+	flag Flag
+}
+
+type OTGMessage struct {
+	opentherm *OpenTherm
+}
+
+type CurrentMessage struct {
+	opentherm *OpenTherm
+}
+
+type ReturnTempMessage struct {
+	opentherm *OpenTherm
+}
+
+type PauseStateMessage struct {
+	opentherm *OpenTherm
+}
+
+type PauseModeItem struct {
+	opentherm *OpenTherm
+}
+
+type OpenTherm struct {
+	sync.RWMutex
+	oitems        map[oitemKey]*openthermItem
+	current       *AnItem
+	returnTemp    *AnItem
+	pauseState    *AnItem
+	pauseMode     *Switch
+	forceSetPoint float64
+	conn          *MQTTConn
+}
+
+func (s *OpenTherm) OnValueChange(item Item, old string, new string) {
+	payload := "on"
+	if new != ON {
+		payload = "off"
+	}
+	s.conn.Publish(item.ID(), "otg/in/pause", payload)
+}
+
+func (o *OpenTherm) onMessage(client mqtt.Client, msg mqtt.Message) {
+	new := string(msg.Payload())
+	new = strings.TrimRight(new, "\r\n")
+	if len(new) == 0 {
+		return
+	}
+
+	omsg := &Message{}
+	if err := omsg.Decode(new); err != nil {
+		Log.Errorf("unable to decode opentherm message %s: %s", new, err)
+		return
+	}
+	Log.Debugf("Opentherm message %d from '%s' '%s': %+v(%s) [%s]", omsg.ID, omsg.Src, omsg.Desc, omsg.Values, omsg.Type, new)
+
+	key := oitemKey{
+		src:  omsg.Src,
+		id:   omsg.ID,
+		kind: omsg.Type,
+	}
+
+	o.RLock()
+	oitem := o.oitems[key]
+	o.RUnlock()
+
+	if oitem != nil {
+		if omsg.ID == 0 {
+			var state bool
+
+			if omsg.Src == B || omsg.Src == A {
+				switch oitem.flag {
+				case SlaveFault:
+					state = omsg.IsSlaveFault()
+				case SlaveCH:
+					state = omsg.IsSlaveCH()
+				case SlaveDHW:
+					state = omsg.IsSlaveDHW()
+				case SlaveFlame:
+					state = omsg.IsSlaveFlame()
+				case SlaveCooling:
+					state = omsg.IsSlaveCooling()
+				case SlaveCH2:
+					state = omsg.IsSlaveCH2()
+				case SlaveDiagnostic:
+					state = omsg.IsSlaveDiagnostic()
+				case SlaveElectricity:
+					state = omsg.IsSlaveElectricity()
+				}
+			} else if omsg.Src == T || omsg.Src == R {
+				switch oitem.flag {
+				case MasterCH:
+					state = omsg.IsMasterCH()
+				case MasterDHW:
+					state = omsg.IsMasterDHW()
+				case MasterCooling:
+					state = omsg.IsMasterCooling()
+				case MasterOTC:
+					state = omsg.IsMasterOTC()
+				case MasterCH2:
+					state = omsg.IsMasterCH2()
+				case MasterSummer:
+					state = omsg.IsMasterSummer()
+				case MasterDHWBlocking:
+					state = omsg.IsMasterDHWBlocking()
+				}
+			}
+
+			if state {
+				oitem.item.SetValue(ON)
+			} else {
+				oitem.item.SetValue(OFF)
+			}
+		} else {
+			value := omsg.Values[0]
+			switch value.(type) {
+			case int64:
+				oitem.item.SetValue(fmt.Sprintf("%d", value))
+			case float64:
+				oitem.item.SetValue(fmt.Sprintf("%.2f", value))
+			}
+		}
+	}
+}
+
+func (p *PauseModeItem) OnValueChange(item Item, old string, new string) {
+	payload := "off"
+	if new != ON {
+		payload = "on"
+	}
+	p.opentherm.conn.Publish(item.ID(), "otg/in/pause", payload)
+}
+
+func (o *OpenTherm) ReturnTempItem() Item {
+	return o.returnTemp
+}
+
+func (o *ReturnTempMessage) onMessage(client mqtt.Client, msg mqtt.Message) {
+	value := string(msg.Payload())
+
+	si := o.opentherm.returnTemp
+	old, _ := si.SetValue(value)
+	si.notifyListeners(old, value)
+}
+
+func (o *OpenTherm) CurrentItem() Item {
+	return o.current
+}
+
+func (o *CurrentMessage) onMessage(client mqtt.Client, msg mqtt.Message) {
+	value := string(msg.Payload())
+
+	si := o.opentherm.current
+	amp, _ := strconv.ParseFloat(value, 64)
+	watt := amp * 220
+	if watt < 500 {
+		watt = 0
+	}
+
+	old, _ := o.opentherm.current.SetValue(fmt.Sprintf("%.2f", watt))
+	si.notifyListeners(old, value)
+}
+
+func (o *OpenTherm) PauseStateItem() Item {
+	return o.pauseState
+}
+
+func (o *OpenTherm) PauseModeItem() Item {
+	return o.pauseMode
+}
+
+func (o *PauseStateMessage) onMessage(client mqtt.Client, msg mqtt.Message) {
+	value := string(msg.Payload())
+
+	if value == "off" {
+		value = ON
+	} else {
+		value = OFF
+	}
+
+	old, _ := o.opentherm.pauseState.SetValue(value)
+	si := o.opentherm.pauseState
+	si.notifyListeners(old, value)
+}
+
+func (o *OpenTherm) RegisterFlagItem(id, label, unit string, src Src, kind MessageType, flag Flag) Item {
+	key := oitemKey{
+		src:  src,
+		id:   0,
+		kind: kind,
+	}
+
+	o.Lock()
+	defer o.Unlock()
+
+	item := &AnItem{
+		id:    id,
+		label: label,
+		kind:  "state",
+		img:   "switch",
+	}
+	o.oitems[key] = &openthermItem{
+		item: item,
+		flag: flag,
+	}
+
+	registry.Add(item)
+
+	return item
+}
+
+func (o *OpenTherm) RegisterValueItem(id, label, unit string, src Src, msgID int, kind MessageType) Item {
+	key := oitemKey{
+		src:  src,
+		id:   msgID,
+		kind: kind,
+	}
+
+	o.Lock()
+	defer o.Unlock()
+
+	value := NewValue(id, label, unit)
+	o.oitems[key] = &openthermItem{
+		item: value,
+	}
+
+	registry.Add(value)
+
+	return value
+}
+
+func (o *OpenTherm) RegisterSetPointItem(label string) Item {
+	value := NewValue("OPENTHERM_FORCE_SETPOINT", label, "°")
+	value.value = "17.5"
+	value.kind = "range"
+
+	registry.Add(value)
+	value.AddListener(o)
+
+	return value
+}
+
+func NewOpenTherm(conn *MQTTConn, topic, currentTopic, returnTopic, pauseTopic string) *OpenTherm {
+	o := &OpenTherm{
+		oitems: make(map[oitemKey]*openthermItem),
+		current: &AnItem{
+			id:    "OTG_CURRENT",
+			label: "Current",
+			kind:  "value",
+			img:   "electricity",
+			unit:  "W",
+		},
+		returnTemp: &AnItem{
+			id:    "OTG_RETURN_TEMPERATURE",
+			label: "Return temperature",
+			kind:  "value",
+			img:   "temperature",
+			unit:  "°",
+		},
+		pauseState: &AnItem{
+			id:    "OTG_RELAY_STATE",
+			label: "State",
+			kind:  "state",
+			img:   "plug",
+		},
+		pauseMode: &Switch{
+			AnItem: AnItem{
+				id:    "OTG_RELAY_MODE",
+				label: "Mode",
+				kind:  "switch",
+				img:   "plug",
+				value: ON,
+			},
+		},
+		conn: conn,
+	}
+
+	registry.Add(o.current)
+	registry.Add(o.returnTemp)
+	registry.Add(o.pauseState)
+	registry.Add(o.pauseMode)
+
+	conn.Subscribe(topic, o)
+	conn.Subscribe(currentTopic, &CurrentMessage{opentherm: o})
+	conn.Subscribe(returnTopic, &ReturnTempMessage{opentherm: o})
+	conn.Subscribe(pauseTopic, &PauseStateMessage{opentherm: o})
+
+	pauseMode := &PauseModeItem{opentherm: o}
+	o.pauseMode.AddListener(pauseMode)
+
+	return o
 }

@@ -71,41 +71,39 @@ func (s *SmartBoiler) onMessage(client mqtt.Client, msg mqtt.Message) {
 	switch msg.Topic() {
 	case "smab-br/temperature":
 		si := s.temperature
-		if si.value != value {
-			if old, updated := si.SetValue(value); updated {
-				si.notifyListeners(old, value)
-			}
-		}
-	case "smab-br/flow-meter":
-		si := s.instantFlowMeter
-		newFloat, _ := strconv.ParseFloat(value, 64)
-		newFloat = newFloat * 0.5 / 60222 // to liter
+		old, _ := si.SetValue(value)
+		si.notifyListeners(old, value)
 
-		old, _ := si.SetValue(fmt.Sprintf("%.2f", newFloat))
+	case "smab-br/flow-meter":
+		now := time.Now()
+
+		si := s.instantFlowMeter
+		value, _ := strconv.ParseFloat(value, 64)
+
+		newFloat := value * 0.5 / 34887 // to liter
+
+		literPerMin := newFloat / now.Sub(si.LastValueChange()).Seconds() * 60 // per min
+
+		old, _ := si.SetValue(fmt.Sprintf("%.4f", literPerMin))
 		si.notifyListeners(old, si.value)
 
 		si = s.sessionFlowMeter
 
-		now := time.Now()
-		if si.lastValueUpdate.Add(10 * time.Minute).After(now) {
-			oldFloat, _ := strconv.ParseFloat(si.value, 64)
-			newFloat += oldFloat
+		oldFloat, _ := strconv.ParseFloat(si.value, 64)
 
-			old, _ = si.SetValue(fmt.Sprintf("%.2f", newFloat))
-			si.notifyListeners(old, si.value)
-
-			si = s.sessionFlowPrice
-			priceFloat := newFloat * 3 / 1000 // 3 € / m3
-
-			old, _ = si.SetValue(fmt.Sprintf("%.2f", priceFloat))
-			si.notifyListeners(old, si.value)
-		} else {
-			old, _ := si.SetValue("0.00")
-			si.notifyListeners(old, "0.00")
-
-			old, _ = s.SessionPriceItem().SetValue("0.00")
-			si.notifyListeners(old, "0.00")
+		if si.lastValueChange.Add(2 * time.Minute).Before(now) {
+			oldFloat = 0
 		}
+		newFloat += oldFloat
+
+		old, _ = si.SetValue(fmt.Sprintf("%.6f", newFloat))
+		si.notifyListeners(old, si.value)
+
+		si = s.sessionFlowPrice
+		priceFloat := newFloat * 3 / 1000 // 3 € / m3
+
+		old, _ = si.SetValue(fmt.Sprintf("%.5f", priceFloat))
+		si.notifyListeners(old, si.value)
 	case "smab-br/current":
 		si := s.current
 		amp, _ := strconv.ParseFloat(value, 64)
@@ -133,6 +131,7 @@ func (s *SmartBoiler) onMessage(client mqtt.Client, msg mqtt.Message) {
 func (s *SmartBoiler) TemperatureItem() Item {
 	return s.temperature
 }
+
 func (s *SmartBoiler) CurrentSensorItem() Item {
 	return s.current
 }
@@ -188,11 +187,13 @@ func NewSmartBoiler(id string, label string, conn *MQTTConn, pubTopic string, su
 			unit:  "W",
 		},
 		instantFlowMeter: &AnItem{
-			id:    id + "_INSTANT_METER",
-			label: "Instant Liter",
-			kind:  "value",
-			img:   "shower",
-			unit:  "L",
+			id:              id + "_INSTANT_METER",
+			label:           "Instant Liter",
+			kind:            "value",
+			img:             "shower",
+			unit:            "L/M",
+			lastValueUpdate: time.Now(),
+			lastValueChange: time.Now(),
 		},
 		sessionFlowMeter: &AnItem{
 			id:    id + "_SESSION_METER",

@@ -32,7 +32,6 @@ import (
 type MQTT struct {
 	AnItem
 	pubTopic string
-	subTopic string
 	conn     *MQTTConn
 }
 
@@ -57,7 +56,6 @@ func NewMQTT(id string, label string, conn *MQTTConn, pubTopic string, subTopic 
 	m := &MQTT{
 		conn:     conn,
 		pubTopic: pubTopic,
-		subTopic: subTopic,
 		AnItem: AnItem{
 			id:    id,
 			label: label,

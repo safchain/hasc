@@ -39,6 +39,13 @@ type InfluxDB struct {
 	cq        map[string]bool
 	flush     time.Duration
 	lastFlush time.Time
+	points    chan Point
+}
+
+type Point struct {
+	id    string
+	tags  map[string]string
+	value float64
 }
 
 func (i *InfluxDB) createCQs(name string) error {
@@ -83,7 +90,6 @@ func (i *InfluxDB) OnValueChange(item Item, old string, new string) {
 	Log.Infof("InfluxDB insert data points for %s", id)
 
 	tags := make(map[string]string)
-	tags[id] = item.ID()
 
 	var f float64
 	var err error
@@ -102,26 +108,37 @@ func (i *InfluxDB) OnValueChange(item Item, old string, new string) {
 		}
 	}
 
-	fields := map[string]interface{}{
-		"value": f,
+	select {
+	case i.points <- Point{id: id, tags: tags, value: f}:
+	default:
 	}
+}
 
-	name := id + "-" + item.ID()
-	if _, ok := i.cq[name]; !ok {
-		if err = i.createCQs(name); err != nil {
-			Log.Errorf("InfluxDB unable to create CQs for %s: %s", name, err)
-			return
+func (i *InfluxDB) insertPoints() {
+	for {
+		select {
+		case point := <-i.points:
+			fields := map[string]interface{}{
+				"value": point.value,
+			}
+
+			/*if _, ok := i.cq[id]; !ok {
+				if err = i.createCQs(id); err != nil {
+					Log.Errorf("InfluxDB unable to create CQs for %s: %s", id, err)
+					return
+				}
+				i.cq[id] = true
+			}*/
+
+			pt, err := influxdb.NewPoint(point.id, point.tags, fields, time.Now())
+			if err != nil {
+				Log.Errorf("InfluxDB new point error: %s", err)
+				continue
+			}
+
+			i.addPoint(pt)
 		}
-		i.cq[name] = true
 	}
-
-	pt, err := influxdb.NewPoint(name, tags, fields, time.Now())
-	if err != nil {
-		Log.Errorf("InfluxDB new point error: %s", err)
-		return
-	}
-
-	i.addPoint(pt)
 }
 
 func (i *InfluxDB) addPoint(pt *influxdb.Point) {
@@ -175,7 +192,7 @@ func (i *InfluxDB) createDatabase() error {
 		return err
 	}
 
-	q := fmt.Sprintf(`CREATE RETENTION POLICY "1d" ON "%s" DURATION 1d REPLICATION 1 DEFAULT`, i.db)
+	/*q := fmt.Sprintf(`CREATE RETENTION POLICY "1d" ON "%s" DURATION 1d REPLICATION 1 DEFAULT`, i.db)
 	if err := i.rawQuery(q); err != nil {
 		return err
 	}
@@ -188,7 +205,7 @@ func (i *InfluxDB) createDatabase() error {
 	q = fmt.Sprintf(`CREATE RETENTION POLICY "1y" ON "%s" DURATION 52w REPLICATION 1`, i.db)
 	if err := i.rawQuery(q); err != nil {
 		return err
-	}
+	}*/
 
 	return nil
 }
@@ -215,11 +232,14 @@ func NewInfluxDB(addr string, port int, db string, username string, password str
 		flush:     flush,
 		cq:        make(map[string]bool),
 		lastFlush: time.Now(),
+		points:    make(chan Point, 100),
 	}
 
 	if err := i.createDatabase(); err != nil {
 		Log.Fatalf("InfluxDB unable to create the database: %s", err)
 	}
+
+	go i.insertPoints()
 
 	return i
 }

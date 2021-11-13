@@ -58,12 +58,17 @@ func (s *Switch) SetValue(new string) (string, bool) {
 	return old, updated
 }
 
-func NewSwitch(id string, label string) *Switch {
+func NewSwitch(id string, label string, disabled bool) *Switch {
+	kind := "switch"
+	if disabled {
+		kind = "state"
+	}
+
 	s := &Switch{
 		AnItem: AnItem{
 			id:    id,
 			label: label,
-			kind:  "switch",
+			kind:  kind,
 			img:   "switch",
 			value: OFF,
 		},

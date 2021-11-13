@@ -65,6 +65,8 @@ type AnItem struct {
 	unit            string
 	value           string
 	lastValueUpdate time.Time
+	lastValueChange time.Time
+	_               uint8
 }
 
 func (a *AnItem) AddListener(l ItemListener) {
@@ -103,6 +105,7 @@ func (a *AnItem) SetValue(value string) (string, bool) {
 
 	a.lock.Lock()
 	if value != a.value {
+		a.lastValueChange = a.lastValueUpdate
 		updated = true
 	}
 	old = a.value
@@ -129,6 +132,13 @@ func (a *AnItem) LastValueUpdate() time.Time {
 	defer a.lock.RUnlock()
 
 	return a.lastValueUpdate
+}
+
+func (a *AnItem) LastValueChange() time.Time {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+
+	return a.lastValueChange
 }
 
 func (a *AnItem) Lock() {

@@ -10,13 +10,15 @@ import ListItemIcon from '@material-ui/core/ListItemIcon';
 import ListItemSecondaryAction from '@material-ui/core/ListItemSecondaryAction';
 import ListItemText from '@material-ui/core/ListItemText';
 import Switch from '@material-ui/core/Switch';
+
+import ButtonGroup from '@material-ui/core/ButtonGroup';
 import Button from '@material-ui/core/Button';
 import Container from '@material-ui/core/Container';
 import { withSnackbar, WithSnackbarProps, VariantType } from 'notistack';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { faTemperatureHigh, faChartBar, faTint, faFan, faWindowMaximize, faFire, faHdd } from '@fortawesome/free-solid-svg-icons';
 import { faMemory, faLaptop, faSlidersH, faBug, faLayerGroup, faMicrochip, faBolt, faMoneyBillAlt } from '@fortawesome/free-solid-svg-icons';
-import { faBurn, faPlug, faShower, faClock, faStopwatch, faToggleOn } from '@fortawesome/free-solid-svg-icons';
+import { faBurn, faPlug, faShower, faClock, faStopwatch, faToggleOn, faLightbulb } from '@fortawesome/free-solid-svg-icons';
 import { faKey } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Fab from '@material-ui/core/Fab';
@@ -24,6 +26,8 @@ import CheckIcon from '@material-ui/icons/Check';
 import CloseIcon from '@material-ui/icons/Close';
 import ExpandLess from '@material-ui/icons/ExpandLess';
 import ExpandMore from '@material-ui/icons/ExpandMore';
+import AddIcon from '@material-ui/icons/Add';
+import RemoveIcon from '@material-ui/icons/Remove';
 import Collapse from '@material-ui/core/Collapse';
 import Badge from '@material-ui/core/Badge';
 import Websocket from 'react-websocket';
@@ -32,6 +36,7 @@ import * as qs from 'query-string';
 import { useStyles } from './AppStyle';
 import './App.css';
 
+library.add(faLightbulb, faKey);
 library.add(faTemperatureHigh, faKey);
 library.add(faChartBar, faKey);
 library.add(faTint, faKey);
@@ -131,6 +136,8 @@ const RenderIcon: React.FC<IconRenderProps> = (props) => {
       return (<FontAwesomeIcon icon="stopwatch" />);
     case "switch":
       return (<FontAwesomeIcon icon="toggle-on" />);
+    case "light":
+      return (<FontAwesomeIcon icon="lightbulb" />);
   }
 
   return (
@@ -139,7 +146,7 @@ const RenderIcon: React.FC<IconRenderProps> = (props) => {
 };
 
 const RenderSwitch: React.FC<ItemRenderProps> = (props) => {
-  const [checked, setChecked] = React.useState(props.Value == "ON");
+  const [checked, setChecked] = React.useState(props.Value === "ON");
 
   const onChange = (event: any) => {
     setChecked(!checked)
@@ -147,7 +154,7 @@ const RenderSwitch: React.FC<ItemRenderProps> = (props) => {
     fetch(`${props.baseUrl}/item/${props.ID}`, {
       method: 'POST',
       body: !checked ? "ON" : "OFF"
-    })
+    });
   }
 
   return (
@@ -155,7 +162,7 @@ const RenderSwitch: React.FC<ItemRenderProps> = (props) => {
       edge="end"
       color="primary"
       onChange={onChange}
-      checked={props.Value == "ON"}
+      checked={props.Value === "ON"}
     />
   )
 };
@@ -173,6 +180,43 @@ const RenderButton: React.FC<ItemRenderProps> = (props) => {
 const RenderValue: React.FC<ItemRenderProps> = (props) => {
   return (
     <Typography>{props.Value}{props.Unit}</Typography>
+  )
+};
+
+const RenderRange: React.FC<ItemRenderProps> = (props) => {
+  const [value, setValue] = React.useState(parseFloat(props.Value));
+
+  const onChange = (t: number) => {
+    fetch(`${props.baseUrl}/item/${props.ID}`, {
+      method: 'POST',
+      body: t.toString()
+    });
+  }
+
+  return (
+    <ButtonGroup variant="contained" color="primary" style={{ boxShadow: 'none' }}>
+      <Button className="Shadow-button" style={{ padding: '6px 8px' }}
+        aria-label="reduce"
+        onClick={() => {
+          setValue(value - 0.5);
+          onChange(value - 0.5);
+        }}
+      >
+        <RemoveIcon fontSize="small" />
+      </Button>
+      <Button variant="outlined" component="span" className="Middle-button" style={{ padding: '5px 8px', color: '#000', border: 'none' }}>
+        {value.toFixed(1)}
+      </Button>
+      <Button className="Shadow-button" style={{ padding: '6px 8px' }}
+        aria-label="increase"
+        onClick={() => {
+          setValue(value + 0.5);
+          onChange(value + 0.5);
+        }}
+      >
+        <AddIcon fontSize="small" />
+      </Button>
+    </ButtonGroup>
   )
 };
 
@@ -222,6 +266,10 @@ const RenderType: React.FC<ItemRenderProps> = (props) => {
       return (
         <RenderValue {...props} />
       )
+    case "range":
+      return (
+        <RenderRange {...props} />
+      )
     case "state":
       return (
         <RenderState {...props} />
@@ -235,7 +283,7 @@ const RenderType: React.FC<ItemRenderProps> = (props) => {
       const count = (props.Value !== "OFF" && props.Value !== "ON") ? props.Value : "0"
 
       return (
-        <Badge color="primary" badgeContent={count}>
+        <Badge color="primary" badgeContent={count} max={999}>
           <Button variant="contained" color="primary" className={props.Value === "ON" ? classes.btnGreen : classes.btnRed}>
             {value}
           </Button>
@@ -370,13 +418,13 @@ const App: React.FC<Props> = (props) => {
         notify("Data retrieve succesfully", "info");
 
         setData(data);
-      })
+      });
     }).catch((e) => {
       notify(`Unable to load or parse topology data ${e}`, "error");
 
       setTimeout(fetchData, 2000);
     })
-  }, [notify, baseUrl]);
+  }, [notify, baseUrl, password, username]);
 
   useEffect(() => {
     fetchData();

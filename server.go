@@ -35,6 +35,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	_ "net/http/pprof"
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
@@ -280,7 +281,7 @@ func GetItem(id string) Item {
 }
 
 func listenAndServe() {
-	Log.Info("Hasc server started")
+	Log.Infof("Hasc server started, listen: %s", Cfg.GetString("port"))
 	Log.Fatal(http.ListenAndServe(":"+Cfg.GetString("port"), nil))
 }
 

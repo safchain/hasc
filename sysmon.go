@@ -78,23 +78,33 @@ func (s *SysMon) refreshFnc() {
 		return
 	}
 
-	s.memPercent.SetValue(fmt.Sprintf("%.2f", v.UsedPercent))
+	if old, updated := s.memPercent.SetValue(fmt.Sprintf("%.2f", v.UsedPercent)); updated {
+		s.memPercent.notifyListeners(old, s.memPercent.value)
+	}
 
 	l, err := load.Avg()
 	if err != nil {
 		Log.Errorf("SysMon cpu avg refresh %s", err)
 		return
 	}
-	s.cpuAvg1.SetValue(fmt.Sprintf("%.2f", l.Load1))
-	s.cpuAvg5.SetValue(fmt.Sprintf("%.2f", l.Load5))
-	s.cpuAvg15.SetValue(fmt.Sprintf("%.2f", l.Load15))
+	if old, updated := s.cpuAvg1.SetValue(fmt.Sprintf("%.2f", l.Load1)); updated {
+		s.cpuAvg1.notifyListeners(old, s.cpuAvg1.value)
+	}
+	if old, updated := s.cpuAvg5.SetValue(fmt.Sprintf("%.2f", l.Load5)); updated {
+		s.cpuAvg5.notifyListeners(old, s.cpuAvg5.value)
+	}
+	if old, updated := s.cpuAvg15.SetValue(fmt.Sprintf("%.2f", l.Load15)); updated {
+		s.cpuAvg15.notifyListeners(old, s.cpuAvg15.value)
+	}
 
 	u, err := host.Uptime()
 	if err != nil {
 		Log.Errorf("SysMon uptime refresh %s", err)
 		return
 	}
-	s.uptime.SetValue(secondsToHuman(u))
+	if old, updated := s.uptime.SetValue(secondsToHuman(u)); updated {
+		s.cpuAvg15.notifyListeners(old, s.uptime.value)
+	}
 }
 
 func (s *SysMon) refresh(refresh time.Duration) {
