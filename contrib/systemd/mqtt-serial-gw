@@ -4,7 +4,7 @@ After=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/mqtt-serial-gw --data /etc/hasc
+ExecStart=/usr/bin/mqtt-serial-gw
 Restart=on-failure
 
 [Install]

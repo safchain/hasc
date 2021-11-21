@@ -22,9 +22,15 @@
 
 package main
 
-import "github.com/safchain/hasc"
+import (
+	"github.com/spf13/cobra"
+
+	"github.com/safchain/hasc/pkg/mqtt"
+	"github.com/safchain/hasc/pkg/serial"
+)
 
 var (
+	cmd      *cobra.Command
 	device   string
 	baud     int
 	broker   string
@@ -32,27 +38,45 @@ var (
 	subTopic string
 )
 
-func OnStateChange(object hasc.Object, old string, new string) {
-	switch object.ID() {
-	case "MQTT":
-		hasc.ObjectFromID("SERIAL").SetState(new)
-	case "SERIAL":
-		hasc.ObjectFromID("MQTT").SetState(new)
-	}
+type serialListener struct {
+	mqtt *mqtt.MQTT
+}
+
+type mqttListener struct {
+	serial *serial.Serial
+}
+
+func (s *serialListener) OnValueChange(value string) {
+	s.mqtt.PublishValue(value)
+}
+
+func (m *mqttListener) OnValueChange(value string) {
+	m.serial.WriteValue(value)
 }
 
 func main() {
-	hasc.Cmd.PersistentFlags().StringVarP(&device, "device", "", "/dev/arduino", "serial device, ex: /dev/arduino")
-	hasc.Cmd.PersistentFlags().IntVarP(&baud, "baud", "", 9600, "baud, ex: 9600")
-	hasc.Cmd.PersistentFlags().StringVarP(&broker, "address", "", "localhost:1883", "MQTT broker address, ex: localhost:1883")
-	hasc.Cmd.PersistentFlags().StringVarP(&pubTopic, "pub-topic", "", "/serial-gw/1", "MQTT publisher topic, ex /serial-gw/1")
-	hasc.Cmd.PersistentFlags().StringVarP(&subTopic, "sub-topic", "", "/serial-gw/2", "MQTT subscriber topic, ex /serial-gw/2")
+	var cmd cobra.Command
 
-	hasc.Start("mqtt-serial-gw", func() {
-		hasc.RegisterMQTT("MQTT", "mqtt to serial", "tcp://"+broker, pubTopic, subTopic)
-		hasc.RegisterSerial("SERIAL", "serial to mqtt", device, baud)
+	cmd.PersistentFlags().StringVarP(&device, "device", "", "/dev/arduino", "serial device, ex: /dev/arduino")
+	cmd.PersistentFlags().IntVarP(&baud, "baud", "", 9600, "baud, ex: 9600")
+	cmd.PersistentFlags().StringVarP(&broker, "address", "", "localhost:1883", "MQTT broker address, ex: localhost:1883")
+	cmd.PersistentFlags().StringVarP(&pubTopic, "pub-topic", "", "/serial-gw/1", "MQTT publisher topic, ex /serial-gw/1")
+	cmd.PersistentFlags().StringVarP(&subTopic, "sub-topic", "", "/serial-gw/2", "MQTT subscriber topic, ex /serial-gw/2")
 
-		// gateway
-		hasc.SetStateListener(OnStateChange)
-	})
+	conn := mqtt.NewMQTTConn("tcp://" + broker)
+	m := mqtt.NewMQTT("MQTT", conn, pubTopic, subTopic)
+	s := serial.NewSerial(device, baud)
+
+	ml := &mqttListener{serial: s}
+	sl := &serialListener{mqtt: m}
+
+	m.AddListener(ml)
+	s.AddListener(sl)
+
+	ch := make(chan bool)
+	<-ch
+}
+
+func init() {
+
 }
