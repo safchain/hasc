@@ -119,7 +119,7 @@ func (g *GCal) newEventGCal(event *calendar.Event) (*eventGCal, error) {
 		for {
 			select {
 			case <-startAfter:
-				re := regexp.MustCompile("(?i)START:\\s*([^\\s]*)\\s*(.*)")
+				re := regexp.MustCompile(`(?i)START\s*([^\s]*)\s*(.*)`)
 				if res := re.FindStringSubmatch(event.Description); len(res) > 0 {
 					if item := server.Registry.Get(res[1]); item != nil {
 						server.Log.Infof("GCal set %s to %s", item.GetID(), res[2])
@@ -127,7 +127,7 @@ func (g *GCal) newEventGCal(event *calendar.Event) (*eventGCal, error) {
 					}
 				}
 			case <-endAfter:
-				re := regexp.MustCompile("(?i)END:\\s*([^\\s]*)\\s*(.*)")
+				re := regexp.MustCompile(`(?i)END\s*([^\s]*)\s*(.*)`)
 				if res := re.FindStringSubmatch(event.Description); len(res) > 0 {
 					if item := server.Registry.Get(res[1]); item != nil {
 						server.Log.Infof("GCal set %s to %s", item.GetID(), res[2])
@@ -184,7 +184,7 @@ func (g *GCal) getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
 		return nil
 	}
 
-	tok, err := config.Exchange(oauth2.NoContext, code)
+	tok, err := config.Exchange(context.Background(), code)
 	if err != nil {
 		log.Fatalf("GCal unable to retrieve token from web %v", err)
 		return nil
@@ -236,7 +236,7 @@ func (g *GCal) refreshFnc(name string) {
 
 	t := time.Now().Format(time.RFC3339)
 	events, err := g.service.Events.List(item.Id).ShowDeleted(false).
-		SingleEvents(true).TimeMin(t).MaxResults(10).OrderBy("startTime").Do()
+		SingleEvents(true).TimeMin(t).MaxResults(100).OrderBy("startTime").Do()
 	if err != nil {
 		server.Log.Errorf("GCal unable to retrieve next ten of the user's events. %v", err)
 		return
@@ -244,11 +244,6 @@ func (g *GCal) refreshFnc(name string) {
 
 	scheduled := make(map[string]*eventGCal)
 	for _, i := range events.Items {
-		summary := strings.ToLower(i.Summary)
-		if strings.Index(summary, "hasc:") < 0 {
-			continue
-		}
-
 		e, err := g.scheduleGCalEvent(i)
 		if err != nil {
 			server.Log.Errorf("GCal error while scheduling: %s", err)

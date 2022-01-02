@@ -47,7 +47,7 @@ func NewValueItem(id string, label string, units ...string) *ValueItem {
 		},
 	}
 
-	server.Registry.Add(v, "")
+	server.Registry.Add(v)
 
 	return v
 }

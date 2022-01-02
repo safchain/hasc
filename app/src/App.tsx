@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import clsx from 'clsx';
 import CssBaseline from '@material-ui/core/CssBaseline';
 import AppBar from '@material-ui/core/AppBar';
@@ -19,7 +19,7 @@ import { library } from '@fortawesome/fontawesome-svg-core';
 import { faTemperatureHigh, faChartBar, faTint, faFan, faWindowMaximize, faFire, faHdd } from '@fortawesome/free-solid-svg-icons';
 import { faMemory, faLaptop, faSlidersH, faBug, faLayerGroup, faMicrochip, faBolt, faMoneyBillAlt } from '@fortawesome/free-solid-svg-icons';
 import { faBurn, faPlug, faShower, faClock, faStopwatch, faToggleOn, faLightbulb } from '@fortawesome/free-solid-svg-icons';
-import { faKey } from '@fortawesome/free-solid-svg-icons';
+import { faKey, faNetworkWired, faFish, faChartArea } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Fab from '@material-ui/core/Fab';
 import CheckIcon from '@material-ui/icons/Check';
@@ -32,6 +32,7 @@ import Collapse from '@material-ui/core/Collapse';
 import Badge from '@material-ui/core/Badge';
 import Websocket from 'react-websocket';
 import * as qs from 'query-string';
+import Chart from "react-google-charts";
 
 import { useStyles } from './AppStyle';
 import './App.css';
@@ -58,6 +59,9 @@ library.add(faPlug, faKey);
 library.add(faClock, faKey);
 library.add(faStopwatch, faKey);
 library.add(faToggleOn);
+library.add(faNetworkWired);
+library.add(faFish);
+library.add(faChartArea);
 
 interface Props extends WithSnackbarProps { }
 
@@ -74,6 +78,7 @@ interface Item {
   Img: string
   Unit: string
   LastUpdate: string
+  HistoryEnabled: boolean
 }
 
 interface ItemRenderProps {
@@ -88,13 +93,21 @@ interface ItemRenderProps {
   Unit: string
   SubItems?: Array<Item>
   LastUpdate: string
+  HistoryEnabled: boolean
+}
+
+interface RenderChartProps {
+  className?: string
+  baseUrl: string
+
+  ID: string
 }
 
 interface IconRenderProps {
   img: string
 }
 
-const RenderIcon: React.FC<IconRenderProps> = (props) => {
+const RenderIcon: React.FC<IconRenderProps> = React.memo((props) => {
   switch (props.img) {
     case "temperature":
       return (<FontAwesomeIcon icon="temperature-high" />);
@@ -138,14 +151,18 @@ const RenderIcon: React.FC<IconRenderProps> = (props) => {
       return (<FontAwesomeIcon icon="toggle-on" />);
     case "light":
       return (<FontAwesomeIcon icon="lightbulb" />);
+    case "network":
+      return (<FontAwesomeIcon icon="network-wired" />);
+    case "fish":
+      return (<FontAwesomeIcon icon="fish" />);
   }
 
   return (
     <FontAwesomeIcon icon="chart-bar" />
   )
-};
+});
 
-const RenderSwitch: React.FC<ItemRenderProps> = (props) => {
+const RenderSwitch: React.FC<ItemRenderProps> = React.memo((props) => {
   const [checked, setChecked] = React.useState(props.Value === "ON");
 
   const onChange = (event: any) => {
@@ -165,9 +182,9 @@ const RenderSwitch: React.FC<ItemRenderProps> = (props) => {
       checked={props.Value === "ON"}
     />
   )
-};
+});
 
-const RenderButton: React.FC<ItemRenderProps> = (props) => {
+const RenderButton: React.FC<ItemRenderProps> = React.memo((props) => {
   const classes = useStyles();
 
   return (
@@ -175,15 +192,15 @@ const RenderButton: React.FC<ItemRenderProps> = (props) => {
       {props.Label}
     </Button>
   )
-};
+});
 
-const RenderValue: React.FC<ItemRenderProps> = (props) => {
+const RenderValue: React.FC<ItemRenderProps> = React.memo((props) => {
   return (
     <Typography>{props.Value}{props.Unit}</Typography>
   )
-};
+});
 
-const RenderRange: React.FC<ItemRenderProps> = (props) => {
+const RenderRange: React.FC<ItemRenderProps> = React.memo((props) => {
   const [value, setValue] = React.useState(parseFloat(props.Value));
 
   const onChange = (t: number) => {
@@ -218,14 +235,14 @@ const RenderRange: React.FC<ItemRenderProps> = (props) => {
       </Button>
     </ButtonGroup>
   )
-};
+});
 
 interface groupRenderProps {
   items?: Array<Item>
   isOpen: boolean
 }
 
-const RenderGroupButton: React.FC<groupRenderProps> = (props) => {
+const RenderGroupButton: React.FC<groupRenderProps> = React.memo((props) => {
   if (props.items) {
     if (!props.isOpen) {
       return (<ExpandLess />);
@@ -235,9 +252,9 @@ const RenderGroupButton: React.FC<groupRenderProps> = (props) => {
   return (
     <svg viewBox="0 0 24 24" />
   )
-};
+});
 
-const RenderState: React.FC<ItemRenderProps> = (props) => {
+const RenderState: React.FC<ItemRenderProps> = React.memo((props) => {
   const classes = useStyles();
 
   if (props.Value === "ON") {
@@ -252,9 +269,9 @@ const RenderState: React.FC<ItemRenderProps> = (props) => {
       <CloseIcon />
     </Fab>
   )
-};
+});
 
-const RenderType: React.FC<ItemRenderProps> = (props) => {
+const RenderType: React.FC<ItemRenderProps> = React.memo((props) => {
   const classes = useStyles();
 
   switch (props.Type) {
@@ -294,11 +311,88 @@ const RenderType: React.FC<ItemRenderProps> = (props) => {
         <React.Fragment />
       )
   }
-};
+});
 
-const RenderItem: React.FC<ItemRenderProps> = (props) => {
+const RenderChart: React.FC<RenderChartProps> = React.memo((props) => {
+  const [data, setData] = React.useState([['date', 'value'], ["00:00", 0]]);
+
+  const getData = () => {
+    fetch(`${props.baseUrl}/values/${props.ID}`, {
+      keepalive: false
+    }).then(response => {
+      if (!response.ok) {
+        throw new Error(response.statusText)
+      }
+      response.json().then(values => {
+        values.unshift(['date', 'value'])
+        setData(values)
+      })
+    })
+  }
+
+  useEffect(() => {
+    getData()
+
+    const interval = setInterval(() => {
+      getData()
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <Chart
+      width={'100%'}
+      height={'250px'}
+      chartType="AreaChart"
+      loader={<div>Loading data</div>}
+      data={data}
+      options={{
+        chartArea: { width: '80%', height: '70%' },
+        backgroundColor: '#fafafa',
+        legend: 'none',
+      }}
+    />
+  )
+})
+
+const RenderSubItem: React.FC<ItemRenderProps> = React.memo((props) => {
   const classes = useStyles();
   const [open, setOpen] = React.useState(false);
+
+  return (
+    <div onClick={() => { setOpen(!open) }}>
+      <RenderItem key={props.ID} className={classes.nested}
+        ID={props.ID}
+        Type={props.Type}
+        Img={props.Img}
+        Label={props.Label}
+        Value={props.Value}
+        Unit={props.Unit}
+        LastUpdate={props.LastUpdate}
+        HistoryEnabled={props.HistoryEnabled}
+        baseUrl={props.baseUrl}
+      />
+      {props.HistoryEnabled &&
+        <Collapse in={open} timeout="auto" unmountOnExit>
+          <RenderChart ID={props.ID} baseUrl={props.baseUrl} />
+        </Collapse>
+      }
+    </div>
+  )
+})
+
+const RenderItem: React.FC<ItemRenderProps> = React.memo((props) => {
+  const [open, setOpen] = React.useState(false);
+
+  const secondary = <React.Fragment>
+    {props.HistoryEnabled &&
+      <FontAwesomeIcon icon="chart-area" style={{ marginLeft: "-12px", marginRight: "3px" }} />
+    }
+    {props.LastUpdate &&
+      <React.Fragment>Updated: {props.LastUpdate}</React.Fragment>
+    }
+  </React.Fragment>
 
   return (
     <React.Fragment>
@@ -309,7 +403,7 @@ const RenderItem: React.FC<ItemRenderProps> = (props) => {
             <RenderIcon img={props.Img} />
           </React.Fragment>
         </ListItemIcon>
-        <ListItemText primary={props.Label} secondary={props.LastUpdate ? "Updated: " + props.LastUpdate : ""} />
+        <ListItemText primary={props.Label} secondary={secondary} />
         <ListItemSecondaryAction>
           <RenderType {...props} />
         </ListItemSecondaryAction>
@@ -318,7 +412,7 @@ const RenderItem: React.FC<ItemRenderProps> = (props) => {
         <Collapse in={open} timeout="auto" unmountOnExit>
           <List component="div" disablePadding>
             {props.SubItems.map((item: Item) => (
-              <RenderItem key={item.ID} className={classes.nested}
+              <RenderSubItem
                 ID={item.ID}
                 Type={item.Type}
                 Img={item.Img}
@@ -326,34 +420,17 @@ const RenderItem: React.FC<ItemRenderProps> = (props) => {
                 Value={item.Value}
                 Unit={item.Unit}
                 LastUpdate={item.LastUpdate}
-                baseUrl={props.baseUrl}
-              />
+                HistoryEnabled={item.HistoryEnabled}
+                baseUrl={props.baseUrl} />
             ))}
           </List>
         </Collapse>
       }
     </React.Fragment>
   )
-};
+})
 
-const updateData = (item: Item, rows: Array<Row>) => {
-  rows.forEach((row: Row, i: number) => {
-    if (row.Item.ID === item.ID) {
-      row.Item = item;
-      return
-    }
-
-    if (row.SubItems) {
-      row.SubItems.forEach((curr: Item, i: number) => {
-        if (curr.ID === item.ID && row.SubItems) {
-          row.SubItems[i] = item
-        }
-      });
-    }
-  });
-};
-
-const App: React.FC<Props> = (props) => {
+const App: React.FC<Props> = React.memo((props) => {
   const classes = useStyles();
   const [data, setData] = useState({ Rows: Array<Row>() });
   const [intervalID, setIntervalID] = useState(0);
@@ -378,6 +455,28 @@ const App: React.FC<Props> = (props) => {
       wsRef!.current!.sendMessage(JSON.stringify("keepalive"));
     }, 2000);
     setIntervalID(id);
+  };
+
+  const updateData = (item: Item, rows: Array<Row>) => {
+    rows.forEach((row: Row, i: number) => {
+      if (row.Item.ID === item.ID) {
+        row.Item = item;
+        return
+      }
+
+      if (row.SubItems) {
+        row.SubItems.forEach((curr: Item, i: number) => {
+          if (curr.ID === item.ID && row.SubItems) {
+            row.SubItems[i] = item
+
+            if (row.Item.Type == "label") {
+              row.Item.LastUpdate = item.LastUpdate
+            }
+            return
+          }
+        });
+      }
+    });
   };
 
   const onMessage = (msg: string) => {
@@ -413,7 +512,7 @@ const App: React.FC<Props> = (props) => {
       headers.set('Authorization', 'Basic ' + btoa(authString));
     }
 
-    fetch(`${baseUrl}/?type=json`, { headers: headers }).then(resp => {
+    fetch(`${baseUrl}/?type=json`, { headers: headers, keepalive: false }).then(resp => {
       return resp.json().then(data => {
         notify("Data retrieve succesfully", "info");
 
@@ -441,7 +540,7 @@ const App: React.FC<Props> = (props) => {
             <Toolbar className={classes.toolbar} variant="dense">
               <Typography component="h1" variant="h6" color="inherit" noWrap className={classes.title}>
                 H.A.S.C.
-            </Typography>
+              </Typography>
             </Toolbar>
           </AppBar>
         </React.Fragment>
@@ -458,12 +557,13 @@ const App: React.FC<Props> = (props) => {
               Unit={row.Item.Unit}
               LastUpdate={row.Item.LastUpdate}
               SubItems={row.SubItems}
+              HistoryEnabled={false}
               baseUrl={baseUrl} />
           ))}
         </List>
       </Container>
     </div>
   );
-}
+})
 
 export default withSnackbar(App);

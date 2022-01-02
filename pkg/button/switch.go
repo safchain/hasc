@@ -56,7 +56,7 @@ func NewSwitchItem(id string, label string, disabled bool) *SwitchItem {
 	}
 	s.AnItem.SetValue(item.OFF)
 
-	server.Registry.Add(s, "")
+	server.Registry.Add(s)
 
 	return s
 }

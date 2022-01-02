@@ -86,8 +86,13 @@ func (s *Serial) read() {
 			time.Sleep(time.Second)
 		}
 		if n > 0 {
-			value := strings.TrimSpace(string(buf[0:n]))
-			s.notifyListeners(value)
+			values := strings.TrimSpace(string(buf[0:n]))
+			for _, value := range strings.Split(values, "\n") {
+				value = strings.Replace(value, "\r", "", -1)
+				if value != "" {
+					s.notifyListeners(value)
+				}
+			}
 		}
 	}
 }

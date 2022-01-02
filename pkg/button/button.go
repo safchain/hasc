@@ -45,7 +45,7 @@ func NewButtonItem(id string, label string) *ButtonItem {
 		},
 	}
 
-	server.Registry.Add(s, "")
+	server.Registry.Add(s)
 
 	return s
 }

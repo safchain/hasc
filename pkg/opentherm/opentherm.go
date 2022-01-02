@@ -517,11 +517,14 @@ func (o *currentMessageHandler) OnMessage(client mqtt.Client, msg mqtt.Message) 
 
 	amp, _ := strconv.ParseFloat(value, 64)
 	watt := amp * 220
-	if watt < 200 {
+	if watt < 100 {
 		watt = 0
 	}
 
-	o.opentherm.CurrentItem.SetValue(fmt.Sprintf("%.2f", watt))
+	watt = 1.13*watt - 324
+	if watt < 7000 {
+		o.opentherm.CurrentItem.SetValue(fmt.Sprintf("%.2f", watt))
+	}
 }
 
 func (o *pauseStateMessageHandler) OnMessage(client mqtt.Client, msg mqtt.Message) {
@@ -547,7 +550,7 @@ func (o *OpenTherm) RegisterFlagItem(id, label, unit string, src Src, kind Messa
 	defer o.Unlock()
 
 	item := &item.AnItem{
-		ID:    id,
+		ID:    fmt.Sprintf("%s/%s", o.id, id),
 		Label: label,
 		Type:  "state",
 		Img:   "switch",
@@ -557,7 +560,7 @@ func (o *OpenTherm) RegisterFlagItem(id, label, unit string, src Src, kind Messa
 		flag: flag,
 	}
 
-	server.Registry.Add(item, o.id)
+	server.Registry.Add(item)
 
 	return item
 }
@@ -572,54 +575,54 @@ func (o *OpenTherm) RegisterValueItem(id, label, unit string, src Src, msgID int
 	o.Lock()
 	defer o.Unlock()
 
-	value := value.NewValueItem(id, label, unit)
+	value := value.NewValueItem(fmt.Sprintf("%s/%s", o.id, id), label, unit)
 	o.oItems[key] = &OpenthermItem{
 		Item: value,
 	}
 
-	server.Registry.Add(value, o.id)
+	server.Registry.Add(value)
 
 	return value
 }
 
-func (o *OpenTherm) RegisterSetPointItem(label string) item.Item {
-	value := value.NewValueItem("OPENTHERM_FORCE_SETPOINT", label, "°")
+/*func (o *OpenTherm) RegisterSetPointItem(label string) item.Item {
+	value := value.NewValueItem(fmt.Sprintf("%s/FORCE_SETPOINT", o.id), label, "°")
 	value.SetValue("17.5")
 	value.Type = "range"
 
-	server.Registry.Add(value, o.id)
+	server.Registry.Add(value)
 	value.AddListener(o)
 
 	return value
-}
+}*/
 
 func NewOpenTherm(id string, conn *hmqtt.MQTTConn, topic, currentTopic, returnTopic, pauseTopic string) *OpenTherm {
 	o := &OpenTherm{
 		id:     id,
 		oItems: make(map[oItemKey]*OpenthermItem),
 		CurrentItem: &item.AnItem{
-			ID:    "OTG_CURRENT",
+			ID:    fmt.Sprintf("%s/CURRENT", id),
 			Label: "Current",
 			Type:  "value",
 			Img:   "electricity",
 			Unit:  "W",
 		},
 		ReturnTempItem: &item.AnItem{
-			ID:    "OTG_RETURN_TEMPERATURE",
+			ID:    fmt.Sprintf("%s/RETURN_TEMPERATURE", id),
 			Label: "Return temperature",
 			Type:  "value",
 			Img:   "temperature",
 			Unit:  "°",
 		},
 		PauseStateItem: &item.AnItem{
-			ID:    "OTG_RELAY_STATE",
+			ID:    fmt.Sprintf("%s/RELAY_STATE", id),
 			Label: "State",
 			Type:  "state",
 			Img:   "plug",
 		},
 		PauseModeItem: &button.SwitchItem{
 			AnItem: item.AnItem{
-				ID:    "OTG_RELAY_MODE",
+				ID:    fmt.Sprintf("%s/RELAY_MODE", id),
 				Label: "Mode",
 				Type:  "switch",
 				Img:   "plug",
@@ -630,10 +633,10 @@ func NewOpenTherm(id string, conn *hmqtt.MQTTConn, topic, currentTopic, returnTo
 
 	o.PauseModeItem.SetValue(item.ON)
 
-	server.Registry.Add(o.CurrentItem, id)
-	server.Registry.Add(o.ReturnTempItem, id)
-	server.Registry.Add(o.PauseStateItem, id)
-	server.Registry.Add(o.PauseModeItem, id)
+	server.Registry.Add(o.CurrentItem)
+	server.Registry.Add(o.ReturnTempItem)
+	server.Registry.Add(o.PauseStateItem)
+	server.Registry.Add(o.PauseModeItem)
 
 	conn.Subscribe(topic, o)
 	conn.Subscribe(currentTopic, &currentMessageHandler{opentherm: o})

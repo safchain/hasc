@@ -111,35 +111,35 @@ func (s *SysMon) refresh(refresh time.Duration) {
 func NewSysMon(id string, label string, refresh time.Duration) *SysMon {
 	s := &SysMon{
 		MemPercentItem: &item.AnItem{
-			ID:    id + "_MEM",
+			ID:    fmt.Sprintf("%s/MEM", id),
 			Label: "Mem. used",
 			Type:  "value",
 			Img:   "mem",
 			Unit:  "%",
 		},
 		CPUAvg1Item: &item.AnItem{
-			ID:    id + "_AVG1",
+			ID:    fmt.Sprintf("%s/AVG1", id),
 			Label: "CPU Avg1",
 			Type:  "value",
 			Img:   "cpu",
 			Unit:  "%",
 		},
 		CPUAvg5Item: &item.AnItem{
-			ID:    id + "_AVG5",
+			ID:    fmt.Sprintf("%s/AVG5", id),
 			Label: "CPU Avg5",
 			Type:  "value",
 			Img:   "cpu",
 			Unit:  "%",
 		},
 		CPUAvg15Item: &item.AnItem{
-			ID:    id + "_AVG15",
+			ID:    fmt.Sprintf("%s/AVG15", id),
 			Label: "CPU Avg15",
 			Type:  "value",
 			Img:   "cpu",
 			Unit:  "%",
 		},
 		UptimeItem: &item.AnItem{
-			ID:    id + "_UPTIME",
+			ID:    fmt.Sprintf("%s/UPTIME", id),
 			Label: "Uptime",
 			Type:  "value",
 			Img:   "clock",
@@ -151,11 +151,11 @@ func NewSysMon(id string, label string, refresh time.Duration) *SysMon {
 
 	go s.refresh(refresh)
 
-	server.Registry.Add(s.MemPercentItem, id)
-	server.Registry.Add(s.CPUAvg1Item, id)
-	server.Registry.Add(s.CPUAvg5Item, id)
-	server.Registry.Add(s.CPUAvg15Item, id)
-	server.Registry.Add(s.UptimeItem, id)
+	server.Registry.Add(s.MemPercentItem)
+	server.Registry.Add(s.CPUAvg1Item)
+	server.Registry.Add(s.CPUAvg5Item)
+	server.Registry.Add(s.CPUAvg15Item)
+	server.Registry.Add(s.UptimeItem)
 
 	return s
 }

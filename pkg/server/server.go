@@ -46,6 +46,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/safchain/hasc/pkg/influxdb"
 	"github.com/safchain/hasc/pkg/item"
 	"github.com/safchain/hasc/pkg/kv"
 	"github.com/safchain/hasc/pkg/registry"
@@ -85,6 +86,9 @@ var (
 	// Registry item registry
 	Registry *registry.Registry
 
+	// InfluxDB database
+	InfluxDB *influxdb.InfluxDB
+
 	listener  itemListener
 	router    *mux.Router
 	wsclients map[*wsclient]*wsclient
@@ -94,16 +98,63 @@ var (
 func getItemValue(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
-	item := Registry.Get(params["id"])
+	id := params["id"]
+	if params["subid"] != "" {
+		id += "/" + params["subid"]
+	}
+
+	item := Registry.Get(id)
 	if item != nil {
 		w.Write([]byte(item.GetValue()))
+	}
+
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func getItemValues(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+
+	id := params["id"]
+	if params["subid"] != "" {
+		id += "/" + params["subid"]
+	}
+
+	item := Registry.Get(id)
+	if item == nil {
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(http.StatusNotFound)
+
+		return
+	}
+	values := InfluxDB.GetValues(item)
+	b, err := json.Marshal(values)
+	if err != nil {
+		Log.Errorf("error while marshalling values of %s: %s", item.GetID(), err)
+
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("500 - Something bad happened!"))
+
+		return
+	}
+
+	w.Write(b)
+
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
 	}
 }
 
 func setItemValue(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
-	item := Registry.Get(params["id"])
+	id := params["id"]
+	if params["subid"] != "" {
+		id += "/" + params["subid"]
+	}
+
+	item := Registry.Get(id)
 	if item != nil {
 		data, _ := ioutil.ReadAll(r.Body)
 		item.SetValue(string(data))
@@ -126,6 +177,10 @@ func asset(path string, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", ct+"; charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write(content)
+
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func assetHandler(w http.ResponseWriter, r *http.Request) {
@@ -188,7 +243,7 @@ func websocket(w http.ResponseWriter, r *http.Request) {
 	client := &wsclient{
 		addr:     conn.RemoteAddr(),
 		lastRead: time.Now(),
-		wch:      make(chan []byte, 100),
+		wch:      make(chan []byte, 1000),
 	}
 
 	lock.Lock()
@@ -232,7 +287,7 @@ func websocket(w http.ResponseWriter, r *http.Request) {
 				}
 			case now := <-tick.C:
 				client.RLock()
-				out := client.lastRead.Add(10 * time.Second).Before(now)
+				out := client.lastRead.Add(30 * time.Second).Before(now)
 				client.RUnlock()
 
 				if out {
@@ -279,9 +334,13 @@ func GetItem(id string) item.Item {
 	return it
 }
 
-func listenAndServe() {
+func listenAndServe(router *mux.Router) {
+	server := &http.Server{Addr: ":" + Cfg.GetString("port"), Handler: router}
+	server.SetKeepAlivesEnabled(false)
+	server.ListenAndServe()
+
 	Log.Infof("Hasc server started, listen: %s", Cfg.GetString("port"))
-	Log.Fatal(http.ListenAndServe(":"+Cfg.GetString("port"), nil))
+	Log.Fatal(server.ListenAndServe())
 }
 
 func init() {
@@ -344,6 +403,10 @@ Complete documentation is available at http://github.com/safchain/hasc`, name)
 		router.PathPrefix("/statics").HandlerFunc(assetHandler).Methods("GET")
 		router.HandleFunc("/item/{id}", getItemValue).Methods("GET")
 		router.HandleFunc("/item/{id}", setItemValue).Methods("POST")
+		router.HandleFunc("/item/{id}/{subid}", getItemValue).Methods("GET")
+		router.HandleFunc("/item/{id}/{subid}", setItemValue).Methods("POST")
+		router.HandleFunc("/values/{id}", getItemValues).Methods("GET")
+		router.HandleFunc("/values/{id}/{subid}", getItemValues).Methods("GET")
 		router.HandleFunc("/ws", websocket)
 
 		headersOk := handlers.AllowedHeaders([]string{"Authorization"})
@@ -366,9 +429,11 @@ Complete documentation is available at http://github.com/safchain/hasc`, name)
 
 		KV = kv.NewKVStore(Cfg)
 
+		InfluxDB = influxdb.NewInfluxDB(Cfg, Log)
+
 		onInit()
 
-		listenAndServe()
+		listenAndServe(router)
 	}
 
 	Cmd.PersistentFlags().StringVarP(&cfgFile, "conf", "", "", "config file (optional)")

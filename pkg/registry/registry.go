@@ -23,7 +23,6 @@
 package registry
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/safchain/hasc/pkg/item"
@@ -45,14 +44,11 @@ func (r *Registry) AddListener(l item.ItemListener) {
 	r.listeners = append(r.listeners, l)
 }
 
-func (r *Registry) Add(it item.Item, prefix string) {
+func (r *Registry) Add(it item.Item) {
 	r.Lock()
 	defer r.Unlock()
 
 	key := it.GetID()
-	if prefix != "" {
-		key = fmt.Sprintf("%s/%s", prefix, key)
-	}
 	r.items[key] = it
 
 	for _, l := range r.listeners {

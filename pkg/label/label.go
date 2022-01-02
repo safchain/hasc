@@ -20,65 +20,27 @@
  *
  */
 
-package group
+package label
 
 import (
 	"github.com/safchain/hasc/pkg/item"
 	"github.com/safchain/hasc/pkg/server"
 )
 
-type GroupItem struct {
+type LabelItem struct {
 	item.AnItem
-
-	Items []item.Item
 }
 
-func (g *GroupItem) refresh() {
-	off := g.GetValue() == item.OFF || g.GetValue() == ""
-
-	new := item.OFF
-	for _, it := range g.Items {
-		os := it.GetValue()
-		if os != item.OFF && os != "" {
-			new = item.ON
-
-			if off {
-				g.AnItem.SetValue(item.ON)
-				break
-			}
-		}
-	}
-
-	if new == item.OFF && !off {
-		g.AnItem.SetValue(item.OFF)
-	}
-}
-
-func (g *GroupItem) OnValueChange(it item.Item, old string, new string) {
-	g.refresh()
-}
-
-// Add adds an Object to the group.
-func (g *GroupItem) Add(it item.Item) {
-	g.Items = append(g.Items, it)
-
-	it.AddListener(g)
-
-	g.refresh()
-}
-
-func NewGroupItem(id string, label string) *GroupItem {
-	g := &GroupItem{
+func NewLabelItem(id string, label string) *LabelItem {
+	l := &LabelItem{
 		AnItem: item.AnItem{
 			ID:    id,
 			Label: label,
-			Type:  "state",
-			Img:   "group",
+			Type:  "label",
 		},
 	}
-	g.SetValue(item.OFF)
 
-	server.Registry.Add(g)
+	server.Registry.Add(l)
 
-	return g
+	return l
 }

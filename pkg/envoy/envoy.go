@@ -23,9 +23,11 @@
 package envoy
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/tidwall/gjson"
@@ -43,6 +45,11 @@ type Envoy struct {
 	endpoint string
 }
 
+func stringToFloatString(value string) string {
+	f, _ := strconv.ParseFloat(value, 64)
+	return fmt.Sprintf("%.2f", f)
+}
+
 func (e *Envoy) refreshFnc() {
 	resp, err := http.Get(e.endpoint)
 	if err != nil {
@@ -57,16 +64,16 @@ func (e *Envoy) refreshFnc() {
 	}
 
 	value := gjson.Get(string(body), `production.#(type=="inverters").activeCount`)
-	e.InvertersItem.SetValue(value.String())
+	e.InvertersItem.SetValue(stringToFloatString(value.String()))
 
 	value = gjson.Get(string(body), `production.#(type=="eim").wNow`)
-	e.TotalProductionItem.SetValue(value.String())
+	e.TotalProductionItem.SetValue(stringToFloatString(value.String()))
 
 	value = gjson.Get(string(body), `consumption.#(measurementType=="total-consumption").wNow`)
-	e.TotalConsumptionItem.SetValue(value.String())
+	e.TotalConsumptionItem.SetValue(stringToFloatString(value.String()))
 
 	value = gjson.Get(string(body), `consumption.#(measurementType=="net-consumption").wNow`)
-	e.NetConsumptionItem.SetValue(value.String())
+	e.NetConsumptionItem.SetValue(stringToFloatString(value.String()))
 }
 
 func (e *Envoy) refresh(refresh time.Duration) {
@@ -85,28 +92,28 @@ func NewEnvoy(id string, label string, endpoint string, refresh time.Duration) *
 	e := &Envoy{
 		endpoint: endpoint,
 		TotalProductionItem: &item.AnItem{
-			ID:    "TOTAL_PRODUCTION",
+			ID:    fmt.Sprintf("%s/TOTAL_PRODUCTION", id),
 			Label: "Total production",
 			Img:   "electricity",
 			Type:  "value",
 			Unit:  "W",
 		},
 		NetConsumptionItem: &item.AnItem{
-			ID:    "NET_CONSUMPTION",
+			ID:    fmt.Sprintf("%s/NET_CONSUMPTION", id),
 			Label: "Net consumption",
 			Img:   "electricity",
 			Type:  "value",
 			Unit:  "W",
 		},
 		TotalConsumptionItem: &item.AnItem{
-			ID:    "TOTAL_CONSUMPTION",
+			ID:    fmt.Sprintf("%s/TOTAL_CONSUMPTION", id),
 			Label: "Current",
 			Img:   "electricity",
 			Type:  "value",
 			Unit:  "W",
 		},
 		InvertersItem: &item.AnItem{
-			ID:    "INVERTERS",
+			ID:    fmt.Sprintf("%s/INVERTERS", id),
 			Label: "Inverters",
 			Img:   "electricity",
 			Type:  "value",
@@ -114,10 +121,10 @@ func NewEnvoy(id string, label string, endpoint string, refresh time.Duration) *
 		},
 	}
 
-	server.Registry.Add(e.TotalConsumptionItem, id)
-	server.Registry.Add(e.TotalProductionItem, id)
-	server.Registry.Add(e.NetConsumptionItem, id)
-	server.Registry.Add(e.InvertersItem, id)
+	server.Registry.Add(e.TotalConsumptionItem)
+	server.Registry.Add(e.TotalProductionItem)
+	server.Registry.Add(e.NetConsumptionItem)
+	server.Registry.Add(e.InvertersItem)
 
 	go e.refresh(refresh)
 

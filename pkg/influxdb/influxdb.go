@@ -23,15 +23,17 @@
 package influxdb
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"sync"
 	"time"
 
 	influxdb "github.com/influxdata/influxdb/client/v2"
+	"github.com/op/go-logging"
+	"github.com/spf13/viper"
 
 	"github.com/safchain/hasc/pkg/item"
-	"github.com/safchain/hasc/pkg/server"
 )
 
 type InfluxDB struct {
@@ -42,7 +44,8 @@ type InfluxDB struct {
 	cq        map[string]bool
 	flush     time.Duration
 	lastFlush time.Time
-	points    chan Point
+	points    chan *Point
+	logger    *logging.Logger
 }
 
 type Point struct {
@@ -90,7 +93,7 @@ func (i *InfluxDB) createCQs(name string) error {
 
 func (i *InfluxDB) OnValueChange(it item.Item, old string, new string) {
 	id := it.GetID()
-	server.Log.Infof("InfluxDB insert data points for %s", id)
+	i.logger.Infof("InfluxDB insert data points for %s", id)
 
 	tags := make(map[string]string)
 
@@ -106,13 +109,13 @@ func (i *InfluxDB) OnValueChange(it item.Item, old string, new string) {
 	default:
 		f, err = strconv.ParseFloat(value, 64)
 		if err != nil {
-			server.Log.Errorf("InfluxDB value %s is not a numeric: %s", it.GetValue(), err)
+			i.logger.Errorf("InfluxDB value %s is not a numeric: %s", it.GetValue(), err)
 			return
 		}
 	}
 
 	select {
-	case i.points <- Point{id: id, tags: tags, value: f}:
+	case i.points <- &Point{id: id, tags: tags, value: f}:
 	default:
 	}
 }
@@ -133,7 +136,7 @@ func (i *InfluxDB) insertPoints() {
 
 		pt, err := influxdb.NewPoint(point.id, point.tags, fields, time.Now())
 		if err != nil {
-			server.Log.Errorf("InfluxDB new point error: %s", err)
+			i.logger.Errorf("InfluxDB new point error: %s", err)
 			continue
 		}
 
@@ -155,7 +158,7 @@ func (i *InfluxDB) addPoint(pt *influxdb.Point) {
 			Precision: "s",
 		})
 		if err != nil {
-			server.Log.Fatalf("InfluxDB new batch points error: %s", err)
+			i.logger.Fatalf("InfluxDB new batch points error: %s", err)
 		}
 		i.bp = bp
 	}
@@ -164,11 +167,11 @@ func (i *InfluxDB) addPoint(pt *influxdb.Point) {
 	if i.lastFlush.Add(i.flush).After(time.Now()) {
 		return
 	}
-	server.Log.Infof("InfluxDB flush data points")
+	i.logger.Infof("InfluxDB flush data points")
 
 	err := i.client.Write(i.bp)
 	if err != nil {
-		server.Log.Errorf("InfluxDB write error: %s", err)
+		i.logger.Errorf("InfluxDB write error: %s", err)
 	}
 
 	i.lastFlush = time.Now()
@@ -221,35 +224,85 @@ func (i *InfluxDB) createDatabase() error {
 	return nil
 }
 
+func (i *InfluxDB) GetValues(item item.Item) [][]interface{} {
+	query := influxdb.Query{
+		Command:   fmt.Sprintf(`SELECT mean("value") FROM "%s" WHERE time >= now() - 3h GROUP BY time(60s) fill(previous)`, item.GetID()),
+		Database:  i.db,
+		Precision: "ms",
+	}
+
+	fmt.Println(query.Command)
+
+	resp, err := i.client.Query(query)
+	if err != nil {
+		return nil
+	}
+
+	if len(resp.Results) == 0 || len(resp.Results[0].Series) == 0 {
+		return nil
+	}
+
+	var values [][]interface{}
+
+	for _, value := range resp.Results[0].Series[0].Values {
+		ms, _ := value[0].(json.Number).Int64()
+		date := time.Unix(ms/1000, 0)
+
+		values = append(values, []interface{}{
+			fmt.Sprintf("%02d:%02d", date.Hour(), date.Minute()),
+			value[1],
+		})
+	}
+
+	return values
+}
+
 func (i *InfluxDB) Watch(item item.Item) {
 	item.AddListener(i)
+	item.EnableHistory()
 }
 
 // NewInfluxDB returns a new instance of influxdb time series database. It implements
 // the ObjectListener interface thus It will store the states objects monitored.
-func NewInfluxDB(addr string, port int, db string, username string, password string, flush time.Duration) *InfluxDB {
+func NewInfluxDB(cfg *viper.Viper, logger *logging.Logger) *InfluxDB {
+	addr := cfg.GetString("influxdb.addr")
+	port := cfg.GetInt("influxdb.port")
+	db := cfg.GetString("influxdb.db")
+	username := cfg.GetString("influxdb.username")
+	password := cfg.GetString("influxdb.password")
+	flush := cfg.GetInt("influxdb.flush")
+
 	i := &InfluxDB{
 		db:        db,
-		flush:     flush,
+		flush:     time.Duration(time.Second * time.Duration(flush)),
 		cq:        make(map[string]bool),
 		lastFlush: time.Now(),
-		points:    make(chan Point, 100),
+		points:    make(chan *Point, 100000),
+		logger:    logger,
 	}
 
 	go func() {
-		c, err := influxdb.NewHTTPClient(influxdb.HTTPConfig{
-			Addr:     fmt.Sprintf("http://%s:%d", addr, port),
-			Username: username,
-			Password: password,
-		})
-		if err != nil {
-			server.Log.Fatalf("InfluxDB new client error: %s", err)
-		}
+		for {
+			time.Sleep(2 * time.Second)
 
-		i.client = c
+			c, err := influxdb.NewHTTPClient(influxdb.HTTPConfig{
+				Addr:     fmt.Sprintf("http://%s:%d", addr, port),
+				Username: username,
+				Password: password,
+			})
+			if err != nil {
+				i.logger.Errorf("InfluxDB new client error: %s", err)
+				continue
+			}
 
-		if err := i.createDatabase(); err != nil {
-			server.Log.Fatalf("InfluxDB unable to create the database: %s", err)
+			i.client = c
+
+			if err := i.createDatabase(); err != nil {
+				i.logger.Errorf("InfluxDB unable to create the database: %s", err)
+				continue
+			}
+
+			break
 		}
 
 		i.insertPoints()

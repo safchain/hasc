@@ -91,6 +91,7 @@ func (m *MQTTConn) subscribeAll() {
 				server.Log.Errorf("MQTT subscription error: %s", err)
 			}
 		}
+		m.RUnlock()
 	}
 }
 

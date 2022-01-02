@@ -170,7 +170,7 @@ func NewTimerItem(id string, label string, it item.Item, opts ...TimerOpts) *Tim
 		r.opts.Timeout = time.Second
 	}
 
-	server.Registry.Add(r, "")
+	server.Registry.Add(r)
 
 	return r
 }

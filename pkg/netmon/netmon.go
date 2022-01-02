@@ -128,7 +128,7 @@ func NewNetMonItem(id string, label string, address string, refresh time.Duratio
 
 	go n.refresh(refresh)
 
-	server.Registry.Add(n, "")
+	server.Registry.Add(n)
 
 	return n
 }

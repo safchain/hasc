@@ -130,49 +130,49 @@ func NewSmartBoiler(id string, label string, conn *hmqtt.MQTTConn, pubTopic stri
 		pubTopic: pubTopic,
 		subTopic: subTopic,
 		TemperatureItem: &item.AnItem{
-			ID:    "TEMPERATURE",
+			ID:    fmt.Sprintf("%s/TEMPERATURE", id),
 			Label: "Temperature",
 			Type:  "value",
 			Img:   "temperature",
 			Unit:  "°",
 		},
 		CurrentItem: &item.AnItem{
-			ID:    "CURRENT",
+			ID:    fmt.Sprintf("%s/CURRENT", id),
 			Label: "Current",
 			Type:  "value",
 			Img:   "electricity",
 			Unit:  "W",
 		},
 		InstantFlowMeterItem: &item.AnItem{
-			ID:    "INSTANT_METER",
+			ID:    fmt.Sprintf("%s/INSTANT_METER", id),
 			Label: "Instant Liter",
 			Type:  "value",
 			Img:   "shower",
 			Unit:  "L/M",
 		},
 		SessionFlowMeterItem: &item.AnItem{
-			ID:    "SESSION_METER",
+			ID:    fmt.Sprintf("%s/SESSION_METER", id),
 			Label: "Session Liter",
 			Type:  "value",
 			Img:   "shower",
 			Unit:  "L",
 		},
 		SessionFlowPriceItem: &item.AnItem{
-			ID:    "SESSION_PRICE",
+			ID:    fmt.Sprintf("%s/SESSION_PRICE", id),
 			Label: "Session Price",
 			Type:  "value",
 			Img:   "price",
 			Unit:  "€",
 		},
 		RelayStateItem: &item.AnItem{
-			ID:    "RELAY_STATE",
+			ID:    fmt.Sprintf("%s/RELAY_STATE", id),
 			Label: "State",
 			Type:  "state",
 			Img:   "plug",
 		},
 		RelayModeItem: &button.SwitchItem{
 			AnItem: item.AnItem{
-				ID:    "RELAY_MODE",
+				ID:    fmt.Sprintf("%s/RELAY_MODE", id),
 				Label: "Mode",
 				Type:  "switch",
 				Img:   "plug",
@@ -191,14 +191,14 @@ func NewSmartBoiler(id string, label string, conn *hmqtt.MQTTConn, pubTopic stri
 
 	conn.Subscribe(subTopic, s)
 
-	server.Registry.Add(s.TemperatureItem, id)
-	server.Registry.Add(s.CurrentItem, id)
-	server.Registry.Add(s.InstantFlowMeterItem, id)
-	server.Registry.Add(s.SessionFlowMeterItem, id)
-	server.Registry.Add(s.SessionFlowPriceItem, id)
-	server.Registry.Add(s.RelayStateItem, id)
-	server.Registry.Add(s.RelayModeItem, id)
-	server.Registry.Add(s.ForceRelayStateItem, id)
+	server.Registry.Add(s.TemperatureItem)
+	server.Registry.Add(s.CurrentItem)
+	server.Registry.Add(s.InstantFlowMeterItem)
+	server.Registry.Add(s.SessionFlowMeterItem)
+	server.Registry.Add(s.SessionFlowPriceItem)
+	server.Registry.Add(s.RelayStateItem)
+	server.Registry.Add(s.RelayModeItem)
+	server.Registry.Add(s.ForceRelayStateItem)
 
 	s.RelayModeItem.AddListener(s)
 	s.ForceRelayStateItem.AddListener(s)

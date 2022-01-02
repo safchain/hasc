@@ -58,6 +58,9 @@ type Item interface {
 	GetUnit() string
 	SetUnit(unit string)
 	GetLastValueUpdate() time.Time
+	GetLastValueChange() time.Time
+	EnableHistory()
+	IsHistoryEnabled() bool
 
 	AddListener(l ItemListener)
 	MarshalJSON() ([]byte, error)
@@ -73,9 +76,10 @@ type AnItem struct {
 	Img   string
 	Unit  string
 
-	value           string
-	lastValueUpdate time.Time
-	lastValueChange time.Time
+	value            string
+	lastValueUpdate  time.Time
+	lastValueChange  time.Time
+	isHistoryEnabled bool
 
 	listeners []ItemListener
 	_         uint8
@@ -172,6 +176,14 @@ func (a *AnItem) GetUnit() string {
 	return a.Unit
 }
 
+func (a *AnItem) EnableHistory() {
+	a.isHistoryEnabled = true
+}
+
+func (a *AnItem) IsHistoryEnabled() bool {
+	return a.isHistoryEnabled
+}
+
 func (a *AnItem) MarshalJSON() ([]byte, error) {
 	return marshalJSON(a)
 }
@@ -185,20 +197,22 @@ func marshalJSON(item Item) ([]byte, error) {
 	}
 
 	return json.Marshal(&struct {
-		ID         string
-		Type       string
-		Label      string
-		Value      string
-		Img        string
-		Unit       string
-		LastUpdate string
+		ID             string
+		Type           string
+		Label          string
+		Value          string
+		Img            string
+		Unit           string
+		LastUpdate     string
+		HistoryEnabled bool
 	}{
-		ID:         item.GetID(),
-		Type:       item.GetType(),
-		Label:      item.GetLabel(),
-		Value:      item.GetValue(),
-		Img:        item.GetImg(),
-		Unit:       item.GetUnit(),
-		LastUpdate: lastUpdate,
+		ID:             item.GetID(),
+		Type:           item.GetType(),
+		Label:          item.GetLabel(),
+		Value:          item.GetValue(),
+		Img:            item.GetImg(),
+		Unit:           item.GetUnit(),
+		LastUpdate:     lastUpdate,
+		HistoryEnabled: item.IsHistoryEnabled(),
 	})
 }

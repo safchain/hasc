@@ -72,13 +72,13 @@ func NewSmartBulb(id string, label string, conn *hmqtt.MQTTConn, pubTopic string
 		pubTopic: pubTopic,
 		subTopic: subTopic,
 		TickItem: &item.AnItem{
-			ID:    "TICK",
+			ID:    fmt.Sprintf("%s/TICK", id),
 			Label: "Ticker",
 			Type:  "value",
 		},
 		ColorItem: &color{
 			AnItem: item.AnItem{
-				ID:    "COLOR",
+				ID:    fmt.Sprintf("%s/COLOR", id),
 				Label: "Color",
 				Type:  "value",
 			},
@@ -89,8 +89,8 @@ func NewSmartBulb(id string, label string, conn *hmqtt.MQTTConn, pubTopic string
 
 	s.ColorItem.AddListener(s)
 
-	server.Registry.Add(s.TickItem, id)
-	server.Registry.Add(s.ColorItem, id)
+	server.Registry.Add(s.TickItem)
+	server.Registry.Add(s.ColorItem)
 
 	return s
 }

@@ -72,14 +72,14 @@ func NewOWM(id string, label string, apiKey string, lat float64, lon float64, re
 		lat: lat,
 		lon: lon,
 		TemperatureItem: &item.AnItem{
-			ID:    "TEMPERATURE",
+			ID:    fmt.Sprintf("%s/TEMPERATURE", id),
 			Label: "Temperature",
 			Img:   "temperature",
 			Type:  "value",
 			Unit:  "°",
 		},
 		HumidityItem: &item.AnItem{
-			ID:    "HUMIDITY",
+			ID:    fmt.Sprintf("%s/HUMIDITY", id),
 			Label: "Humidity",
 			Img:   "humidity",
 			Type:  "value",
@@ -89,8 +89,8 @@ func NewOWM(id string, label string, apiKey string, lat float64, lon float64, re
 
 	go o.refresh(refresh)
 
-	server.Registry.Add(o.TemperatureItem, id)
-	server.Registry.Add(o.HumidityItem, id)
+	server.Registry.Add(o.TemperatureItem)
+	server.Registry.Add(o.HumidityItem)
 
 	return o
 }

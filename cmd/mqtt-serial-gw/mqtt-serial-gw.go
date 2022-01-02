@@ -23,6 +23,7 @@
 package main
 
 import (
+	"github.com/op/go-logging"
 	"github.com/spf13/cobra"
 
 	"github.com/safchain/hasc/pkg/mqtt"
@@ -30,12 +31,13 @@ import (
 )
 
 var (
-	cmd      *cobra.Command
 	device   string
 	baud     int
 	broker   string
 	pubTopic string
 	subTopic string
+
+	Log = logging.MustGetLogger("default")
 )
 
 type serialListener struct {
@@ -47,10 +49,12 @@ type mqttListener struct {
 }
 
 func (s *serialListener) OnValueChange(value string) {
+	Log.Infof("new value %s from serial, publishing to mqtt", value)
 	s.mqtt.PublishValue(value)
 }
 
 func (m *mqttListener) OnValueChange(value string) {
+	Log.Infof("new value %s from mqtt, writting to serial", value)
 	m.serial.WriteValue(value)
 }
 
@@ -63,8 +67,11 @@ func main() {
 	cmd.PersistentFlags().StringVarP(&pubTopic, "pub-topic", "", "/serial-gw/1", "MQTT publisher topic, ex /serial-gw/1")
 	cmd.PersistentFlags().StringVarP(&subTopic, "sub-topic", "", "/serial-gw/2", "MQTT subscriber topic, ex /serial-gw/2")
 
+	format := logging.MustStringFormatter(`%{color}%{time:15:04:05.000} ▶ %{level:.6s}%{color:reset} %{message}`)
+	logging.SetFormatter(format)
+
 	conn := mqtt.NewMQTTConn("tcp://" + broker)
-	m := mqtt.NewMQTT("MQTT", conn, pubTopic, subTopic)
+	m := mqtt.NewMQTT("GW", conn, pubTopic, subTopic)
 	s := serial.NewSerial(device, baud)
 
 	ml := &mqttListener{serial: s}
